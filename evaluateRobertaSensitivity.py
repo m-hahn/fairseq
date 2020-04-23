@@ -13,6 +13,30 @@ def variance(values):
 roberta = RobertaModel.from_pretrained('/u/scr/mhahn/PRETRAINED/roberta.large.wsc', "model.pt", "/juicier/scr120/scr/mhahn/PRETRAINED/WSC/")
 roberta.cuda()
 
+#print(3)
+#roberta.disambiguate_pronoun('Did not think that he had done anything wrong. Do not consider that he did not consider that he had done anything wrong, if _anyone_ did believe that anyone did not consider that he,  [him] did.')
+#roberta.disambiguate_pronoun('did not think that he had done anything wrong. do not consider that he did not consider that he had done anything wrong, if _anyone_ did believe that anyone did not consider that he,  [him].')
+#roberta.disambiguate_pronoun('“...did not think that he had done anything wrong. “...do not consider that he” did not consider that he had done anything wrong, if" _anyone_ did" believe that anyone “did not consider that he", “ [him]')
+#roberta.disambiguate_pronoun('“...did not think that he had done anything wrong. “...do not consider that he” did not consider that he had done anything wrong, if" _anyone_ did" believe that anyone “did not consider that he", “ [him].')
+#
+#print(1)
+#roberta.disambiguate_pronoun('...did not think that he had done anything wrong. ...do not consider that he” did not consider that he had done anything wrong, if _anyone_ did believe that anyone did not consider that he,  [him] ')
+#print(2)
+#roberta.disambiguate_pronoun('“...did not think that he had done anything wrong. “...do not consider that he” did not consider that he had done anything wrong, if _anyone_ did" believe that anyone “did not consider that he, “ [him] ')
+#print(3)
+#roberta.disambiguate_pronoun('“...did not think that he had done anything wrong. “...do not consider that he” did not consider that he had done anything wrong, if" _anyone_ did" believe that anyone “did not consider that he", “ [him] ')
+#quit()
+
+from scipy.optimize import linprog
+
+
+def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
+   #print(perSubsetSensitivities)
+   c = [-x for x in perSubsetSensitivities]
+   res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
+   return -res.fun
+
+
 with open("/juicier/scr120/scr/mhahn/PRETRAINED/WSC/val_alternatives.txt", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
@@ -35,7 +59,7 @@ for alternative in alternatives:
       subset, sentence = variant.split("\t")
       if subset not in variants_dict:
          variants_dict[subset] = []
-      sentence = sentence.split(" ")
+      sentence = sentence.replace("[", "").replace("]", "").replace("_", "").split(" ")
       sentence[start_underscore+1] = "_1 "+sentence[start_underscore+1]
       sentence[start_bracket+1] = "[ "+sentence[start_bracket+1]
       sentence[end_underscore+1] = "_2 "+sentence[end_underscore+1]
@@ -52,21 +76,49 @@ for alternative in alternatives:
          else:
              result[-1] = result[-1] + word
       result = " ".join(result)
-#      result = result.replace("]", "]")
+      result = result.replace("]", "] ")
       result = result.replace("[", " [")
       result = result.replace("_1", " _")
-      result = result.replace("_2", "_")
+      result = result.replace("_2", "_ ")
+      result = result.replace("  ", " ")
       result = result.strip()
       variants_set.add(result)
       variants_dict[subset].append(result)
-   print((result))
-   print(len(variants_set))
+  # print((result))
+   print(len(variants_set), "variants")
    valuesPerVariant = {}
    for variant in variants_set:
-     print(variant)
-     valuesPerVariant[variant] = roberta.disambiguate_pronoun(variant)
-     print(pred)
+   #  print(variant)
+     try:
+       valuesPerVariant[variant] = 1 if roberta.disambiguate_pronoun(variant) == True else -1
+       if len(valuesPerVariant) % 100 == 0:
+         print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set))
+     except ValueError:
+        print("VALUE ERROR", variant)
+        valuesPerVariant[variant] = 0
+
    varianceBySubset = {}
    for subset in variants_dict:
-       values = [valuesPerVariant[x] for x in variants_dict[subset]]
+       values = [ valuesPerVariant[x] for x in variants_dict[subset]]
        print(subset, mean(values), variance(values))
+       varianceBySubset[subset] = variance(values)
+   print(varianceBySubset)
+
+
+   subsetsEnumeration = list(variants_dict)
+    
+   N = len(subsetsEnumeration[0])
+   A = [[0 for subset in range(len(subsetsEnumeration))] for inp in range(N)]
+   for inp in range(N):
+       for subset, bitstr in enumerate(subsetsEnumeration):
+          assert len(bitstr) == N
+          if bitstr[inp] == "1":
+              A[inp][subset] = 1
+   
+   
+   b = [1 for _ in range(N)]
+   x_bounds = [(0,1) for _ in range(len(subsetsEnumeration))]
+   perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
+
+   print("OVERALL SENSITIVITY ON THIS DATAPOINT", getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities))
+
