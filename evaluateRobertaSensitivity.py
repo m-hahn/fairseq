@@ -36,10 +36,14 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    return -res.fun
 
+from random import shuffle
 
 with open("/juicier/scr120/scr/mhahn/PRETRAINED/WSC/val_alternatives.txt", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
+
+shuffle(alternatives)
+
 for alternative in alternatives:
    if len(alternative) < 5:
       continue
@@ -92,8 +96,11 @@ for alternative in alternatives:
      try:
        valuesPerVariant[variant] = 1 if roberta.disambiguate_pronoun(variant) == True else -1
        if len(valuesPerVariant) % 100 == 0:
-         print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set))
+         print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set), variant)
      except ValueError:
+        print("VALUE ERROR", variant)
+        valuesPerVariant[variant] = 0
+     except AttributeError:
         print("VALUE ERROR", variant)
         valuesPerVariant[variant] = 0
 
