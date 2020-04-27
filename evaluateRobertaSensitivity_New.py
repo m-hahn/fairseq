@@ -43,8 +43,7 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
 
 from random import shuffle
 
-assert False, "for previous version"
-with open("/juicier/scr120/scr/mhahn/PRETRAINED/WSC/val_alternatives_SECOND_VERSION_BACKUP.txt", "r") as inFile: # 
+with open("/juicier/scr120/scr/mhahn/PRETRAINED/WSC/val_alternatives.txt", "r") as inFile: # _SECOND_VERSION_BACKUP
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -59,7 +58,14 @@ for alternative in alternatives:
    variants_dict = {}
    
    alternative = alternative.split("\n")
-   original = alternative[0]
+   original = alternative[0].strip().replace(" [ ", " [")
+   print(original)
+   start_underscore = original.find("_")
+   end_underscore = original.find("_",start_underscore+1)
+   assert start_underscore < end_underscore
+   assert original[start_underscore+1] == " "
+   assert original[end_underscore-1] == " "
+   original = original[:start_underscore] + "_" + original[start_underscore+2:end_underscore-1] + "_" + original[end_underscore+1:]
    print(original)
    print(roberta.disambiguate_pronoun(original))
 
@@ -72,8 +78,8 @@ for alternative in alternatives:
       if subset not in variants_dict:
          variants_dict[subset] = []
       sentence = sentence.replace("[", "").replace("]", "").replace("_", "").split(" ")
-      sentence[start_underscore+1] = "_1 "+sentence[start_underscore+1]
-      sentence[start_bracket+1] = "[ "+sentence[start_bracket+1]
+      sentence[start_underscore+1] = "_1"+sentence[start_underscore+1]
+      sentence[start_bracket+1] = "["+sentence[start_bracket+1]
       sentence[end_underscore+1] = "_2 "+sentence[end_underscore+1]
       sentence[end_bracket+1] = "] "+sentence[end_bracket+1]
       sentence = (" ".join(sentence)).split(" ")
@@ -88,12 +94,16 @@ for alternative in alternatives:
          else:
              result[-1] = result[-1] + word
       result = " ".join(result)
+      #print(result)
       result = result.replace("]", "] ")
-      result = result.replace("[", " [")
-      result = result.replace("_1", " _")
+      result = result.replace("[▁", " [")
+      result = result.replace("_1▁", " _")
       result = result.replace("_2", "_ ")
       result = result.replace("  ", " ")
+      result = result.replace(" .", ".") # in case the sentence ends with "[PRONOUN] + punctuation"
       result = result.strip()
+      #print(result)
+#      assert False
       variants_set.add(result)
       variants_dict[subset].append(result)
   # print((result))
