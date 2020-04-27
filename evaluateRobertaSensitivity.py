@@ -1,3 +1,8 @@
+"""
+Evaluate average block sensitivity for WSC.
+"""
+
+
 from fairseq.models.roberta import RobertaModel
 from examples.roberta.wsc import wsc_utils  # also loads WSC task and criterion
 from examples.roberta.wsc import wsc_task
@@ -43,6 +48,8 @@ with open("/juicier/scr120/scr/mhahn/PRETRAINED/WSC/val_alternatives.txt", "r") 
   print(len(alternatives))
 
 shuffle(alternatives)
+
+sensitivities = []
 
 for alternative in alternatives:
    if len(alternative) < 5:
@@ -127,5 +134,9 @@ for alternative in alternatives:
    x_bounds = [(0,1) for _ in range(len(subsetsEnumeration))]
    perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
 
-   print("OVERALL SENSITIVITY ON THIS DATAPOINT", getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities))
+   sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
+   sensitivities.append(sensitivity)
+   print("Average sensitivity so far", sum(sensitivities)/len(sensitivities))
+
 

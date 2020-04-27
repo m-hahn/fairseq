@@ -242,11 +242,17 @@ class WSCTask(FairseqTask):
             sample['candidate_tokens'][0],
             sample['candidate_masks'][0],
         )
+#        print("245:18")
+#        print(cand_lprobs)
+#        print(sample['query_tokens'][0])
         if sample['query_tokens'][0] is not None:
             query_lprobs = get_lprobs(
                 sample['query_tokens'][0].unsqueeze(0),
                 sample['query_masks'][0].unsqueeze(0),
             )
+#            print(query_lprobs)
+#            print(cand_lprobs)
+#            quit()
             return (query_lprobs >= cand_lprobs).all().item() == 1
         else:
             best_idx = cand_lprobs.argmax().item()
