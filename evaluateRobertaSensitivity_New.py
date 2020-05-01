@@ -1,7 +1,7 @@
 """
 Evaluate average block sensitivity for WSC.
 """
-
+import traceback
 
 from fairseq.models.roberta import RobertaModel
 from examples.roberta.wsc import wsc_utils  # also loads WSC task and criterion
@@ -124,7 +124,11 @@ for alternative in alternatives:
      except RuntimeError:
         print("RUNTIME ERROR", variant)
         valuesPerVariant[variant] = 0
-
+     except Exception as e:
+        print("EXCEPTION ", variant)
+        print(traceback.print_exc())
+        print(e)
+        valuesPerVariant[variant] = 0
    varianceBySubset = {}
    for subset in variants_dict:
        values = [ valuesPerVariant[x] for x in variants_dict[subset]]

@@ -133,3 +133,4 @@ experimental/*
 
 # Additions by m-hahn
 *.swp
+*.swo
