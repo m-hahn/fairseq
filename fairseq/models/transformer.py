@@ -26,6 +26,7 @@ from fairseq.modules import (
     TransformerDecoderLayer,
     TransformerEncoderLayer,
 )
+from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
 from torch import Tensor
 
 
@@ -142,6 +143,10 @@ class TransformerModel(FairseqEncoderDecoderModel):
                                  'Must be used with adaptive_loss criterion'),
         parser.add_argument('--adaptive-softmax-dropout', type=float, metavar='D',
                             help='sets adaptive softmax dropout for the tail projections')
+        parser.add_argument('--layernorm-embedding', action='store_true',
+                            help='add layernorm to embedding')
+        parser.add_argument('--no-scale-embedding', action='store_true',
+                            help='if True, dont scale embeddings')
         # args for "Cross+Self-Attention for Transformer Models" (Peitz et al., 2019)
         parser.add_argument('--no-cross-attention', default=False, action='store_true',
                             help='do not perform cross-attention')
@@ -158,10 +163,13 @@ class TransformerModel(FairseqEncoderDecoderModel):
                             help='which layers to *keep* when pruning as a comma-separated list')
         parser.add_argument('--decoder-layers-to-keep', default=None,
                             help='which layers to *keep* when pruning as a comma-separated list')
-        parser.add_argument('--layernorm-embedding', action='store_true',
-                            help='add layernorm to embedding')
-        parser.add_argument('--no-scale-embedding', action='store_true',
-                            help='if True, dont scale embeddings')
+        # args for Training with Quantization Noise for Extreme Model Compression ({Fan*, Stock*} et al., 2020)
+        parser.add_argument('--quant-noise-pq', type=float, metavar='D', default=0,
+                            help='iterative PQ quantization noise at training time')
+        parser.add_argument('--quant-noise-pq-block-size', type=int, metavar='D', default=8,
+                            help='block size of quantization noise at training time')
+        parser.add_argument('--quant-noise-scalar', type=float, metavar='D', default=0,
+                            help='scalar quantization noise and scalar quantization at training time')
         # fmt: on
 
     @classmethod
@@ -288,8 +296,6 @@ class TransformerModel(FairseqEncoderDecoderModel):
         return self.get_normalized_probs_scriptable(net_output, log_probs, sample)
 
 
-
-
 @register_model("transformer_align")
 class TransformerAlignModel(TransformerModel):
     """
@@ -394,6 +400,15 @@ class TransformerEncoder(FairseqEncoder):
             else None
         )
 
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
+        else:
+            self.quant_noise = None
+
         self.layer_wise_attention = getattr(args, "layer_wise_attention", False)
 
         self.layers = nn.ModuleList([])
@@ -422,6 +437,8 @@ class TransformerEncoder(FairseqEncoder):
         if self.layernorm_embedding is not None:
             x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
         return x, embed
 
     def forward(
@@ -622,6 +639,15 @@ class TransformerDecoder(FairseqIncrementalDecoder):
 
         self.embed_scale = 1.0 if args.no_scale_embedding else math.sqrt(embed_dim)
 
+        if not args.adaptive_input and args.quant_noise_pq > 0:
+            self.quant_noise = apply_quant_noise_(
+                nn.Linear(embed_dim, embed_dim, bias=False),
+                args.quant_noise_pq,
+                args.quant_noise_pq_block_size,
+            )
+        else:
+            self.quant_noise = None
+
         self.project_in_dim = (
             Linear(input_embed_dim, embed_dim, bias=False)
             if embed_dim != input_embed_dim
@@ -669,11 +695,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 factor=args.adaptive_softmax_factor,
                 tie_proj=args.tie_adaptive_proj,
             )
-        elif not self.share_input_output_embed:
-            self.embed_out = nn.Parameter(
-                torch.Tensor(len(dictionary), self.output_embed_dim)
-            )
-            nn.init.normal_(self.embed_out, mean=0, std=self.output_embed_dim ** -0.5)
 
         if args.decoder_normalize_before and not getattr(
             args, "no_decoder_final_norm", False
@@ -685,6 +706,21 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             self.layernorm_embedding = LayerNorm(embed_dim)
         else:
             self.layernorm_embedding = None
+
+        if self.share_input_output_embed:
+            self.output_projection = nn.Linear(
+                self.embed_tokens.weight.shape[1],
+                self.embed_tokens.weight.shape[0],
+                bias=False,
+            )
+            self.output_projection.weight = self.embed_tokens.weight
+        else:
+            self.output_projection = nn.Linear(
+                self.output_embed_dim, len(dictionary), bias=False
+            )
+            nn.init.normal_(
+                self.output_projection.weight, mean=0, std=self.output_embed_dim ** -0.5
+            )
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         return TransformerDecoderLayer(args, no_encoder_attn)
@@ -775,6 +811,9 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)
 
+        if self.quant_noise is not None:
+            x = self.quant_noise(x)
+
         if self.project_in_dim is not None:
             x = self.project_in_dim(x)
 
@@ -852,10 +891,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         """Project features to the vocabulary size."""
         if self.adaptive_softmax is None:
             # project back to size of vocabulary
-            if self.share_input_output_embed:
-                return F.linear(features, self.embed_tokens.weight)
-            else:
-                return F.linear(features, self.embed_out)
+            return self.output_projection(features)
         else:
             return features
 
@@ -879,7 +915,6 @@ class TransformerDecoder(FairseqIncrementalDecoder):
         self._future_mask = self._future_mask.to(tensor)
         return self._future_mask[:dim, :dim]
 
-
     def upgrade_state_dict_named(self, state_dict, name):
         """Upgrade a (possibly old) state dict for new versions of fairseq."""
         if isinstance(self.embed_positions, SinusoidalPositionalEmbedding):
@@ -889,6 +924,20 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             state_dict[
                 "{}.embed_positions._float_tensor".format(name)
             ] = torch.FloatTensor(1)
+
+        if self.share_input_output_embed:
+            embed_tokens_weight_key = f"{name}.embed_tokens.weight"
+            if embed_tokens_weight_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_tokens_weight_key
+                ]
+        else:
+            embed_out_key = f"{name}.embed_out"
+            if embed_out_key in state_dict:
+                state_dict[f"{name}.output_projection.weight"] = state_dict[
+                    embed_out_key
+                ]
+                del state_dict[embed_out_key]
 
         for i in range(self.num_layers):
             # update layer norms
@@ -914,6 +963,17 @@ class TransformerDecoder(FairseqIncrementalDecoder):
             state_dict[version_key] = torch.Tensor([1])
 
         return state_dict
+
+    # Overwrite the method to temporaily support JIT scripting in Transformer
+    @torch.jit.export
+    def reorder_incremental_state(
+        self,
+        incremental_state: Dict[str, Dict[str, Optional[Tensor]]],
+        new_order: Tensor,
+    ):
+        """Scriptable reorder incremental state in the transformer."""
+        for layer in self.layers:
+            layer.reorder_incremental_state(incremental_state, new_order)
 
 
 def Embedding(num_embeddings, embedding_dim, padding_idx):
