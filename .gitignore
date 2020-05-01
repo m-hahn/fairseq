@@ -134,3 +134,14 @@ experimental/*
 # Additions by m-hahn
 *.swp
 *.swo
+
+
+CoLA-bin/
+MNLI-bin/
+MRPC-bin/
+QNLI-bin/
+QQP-bin/
+RTE-bin/
+SST-2-bin/
+STS-B-bin/
+
