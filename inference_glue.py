@@ -1,9 +1,14 @@
 from fairseq.models.roberta import RobertaModel
 
+
+import sys
+
+model = sys.argv[1]
+
 roberta = RobertaModel.from_pretrained(
-    'checkpoints/',
+    f'checkpoints_{model}/',
     checkpoint_file='checkpoint_best.pt',
-    data_name_or_path='RTE-bin'
+    data_name_or_path=f'{model}-bin'
 )
 
 import torch
@@ -13,7 +18,7 @@ label_fn = lambda label: roberta.task.label_dictionary.string(
 ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev.tsv') as fin:
+with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/{model}/dev.tsv') as fin:
     fin.readline()
     for index, line in enumerate(fin):
         tokens = line.strip().split('\t')
@@ -23,4 +28,5 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev.tsv') as fin:
         prediction_label = label_fn(prediction)
         ncorrect += int(prediction_label == target)
         nsamples += 1
+print(nsamples)
 print('| Accuracy: ', float(ncorrect)/float(nsamples))

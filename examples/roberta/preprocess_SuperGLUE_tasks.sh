@@ -79,6 +79,12 @@ do
     TEST_INPUT_COLUMNS=( 2 )
     LABEL_COLUMN=2
     INPUT_COUNT=1
+  elif [ "$TASK" = "BoolQ" ]
+  then
+    INPUT_COLUMNS=( 2 3 )
+    TEST_INPUT_COLUMNS=( 2 3 )
+    LABEL_COLUMN=1
+    INPUT_COUNT=2
   fi
 
   # Strip out header and filter lines that don't have expected number of fields.
