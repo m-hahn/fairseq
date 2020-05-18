@@ -1,16 +1,16 @@
-TOTAL_NUM_UPDATES=6000  # 
-WARMUP_UPDATES=320      # 6 percent of the number of updates
+TOTAL_NUM_UPDATES=2036  # 
+WARMUP_UPDATES=122      # 6 percent of the number of updates
 LR=1e-05                # Peak LR for polynomial LR scheduler.
-NUM_CLASSES=3
-MAX_SENTENCES=1        # Batch size.
+NUM_CLASSES=2
+MAX_SENTENCES=4        # Batch size.
 ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
 
-~/python-py37-mhahn train.py CB-bin/ \
+~/python-py37-mhahn train.py WiC-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
     --max-tokens 4400 \
-    --task sentence_prediction \
+    --task three_sentence_prediction \
     --reset-optimizer --reset-dataloader --reset-meters \
     --required-batch-size-multiple 1 \
     --init-token 0 --separator-token 2 \
@@ -24,5 +24,5 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir checkpoints_CB \
+    --save-dir checkpoints_WiC \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;

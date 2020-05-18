@@ -1,8 +1,8 @@
-TOTAL_NUM_UPDATES=5336  # 
-WARMUP_UPDATES=320      # 6 percent of the number of updates
+TOTAL_NUM_UPDATES=1500  # 
+WARMUP_UPDATES=50      # 6 percent of the number of updates
 LR=1e-05                # Peak LR for polynomial LR scheduler.
 NUM_CLASSES=2
-MAX_SENTENCES=8        # Batch size.
+MAX_SENTENCES=2        # Batch size.
 ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
 
 ~/python-py37-mhahn train.py COPA-bin/ \
@@ -10,7 +10,7 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
     --max-tokens 4400 \
-    --task sentence_prediction \
+    --task multi_sentence_prediction \
     --reset-optimizer --reset-dataloader --reset-meters \
     --required-batch-size-multiple 1 \
     --init-token 0 --separator-token 2 \

@@ -1,4 +1,5 @@
-TASK = "CB"
+import sys
+TASK =  sys.argv[1]
 import json
 for partition in ["train", "val"]:
   columns = None

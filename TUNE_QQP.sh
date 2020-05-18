@@ -24,4 +24,5 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
+    --save-dir checkpoints_QQP \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;

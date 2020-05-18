@@ -1,11 +1,11 @@
-TOTAL_NUM_UPDATES=6000  # 
-WARMUP_UPDATES=320      # 6 percent of the number of updates
-LR=1e-05                # Peak LR for polynomial LR scheduler.
-NUM_CLASSES=3
-MAX_SENTENCES=1        # Batch size.
+TOTAL_NUM_UPDATES=2036  # 10 epochs through RTE for bsz 16
+WARMUP_UPDATES=122      # 6 percent of the number of updates
+LR=2e-05                # Peak LR for polynomial LR scheduler.
+NUM_CLASSES=2
+MAX_SENTENCES=2        # Batch size.
 ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
 
-~/python-py37-mhahn train.py CB-bin/ \
+~/python-py37-mhahn train.py MultiRC-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
@@ -24,5 +24,6 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir checkpoints_CB \
-    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
+    --save-dir checkpoints_MultiRC \
+    --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
+    --skip-invalid-size-inputs-valid-test ;

@@ -37,9 +37,10 @@ do
   INPUT_COUNT=2
   if [ "$TASK" = "COPA" ]
   then
-    INPUT_COLUMNS=( 1 2 6 )
-    TEST_INPUT_COLUMNS=( 1 2 6 )
+    INPUT_COLUMNS=( 1 2 5 6 )
+    TEST_INPUT_COLUMNS=( 1 2 5 6 )
     LABEL_COLUMN=4
+    INPUT_COUNT=4
   elif [ "$TASK" = "CB" ]
   then
     INPUT_COLUMNS=( 1 4 )
@@ -81,10 +82,28 @@ do
     INPUT_COUNT=1
   elif [ "$TASK" = "BoolQ" ]
   then
-    INPUT_COLUMNS=( 2 3 )
-    TEST_INPUT_COLUMNS=( 2 3 )
-    LABEL_COLUMN=1
+    INPUT_COLUMNS=( 3 4 )
+    TEST_INPUT_COLUMNS=( 3 4 )
+    LABEL_COLUMN=2
     INPUT_COUNT=2
+  elif [ "$TASK" = "WiC" ]
+  then
+    INPUT_COLUMNS=( 5 6 10 )
+    TEST_INPUT_COLUMNS=( 5 6 10 )
+    LABEL_COLUMN=4
+    INPUT_COUNT=3
+  elif [ "$TASK" = "ReCoRD" ]
+  then
+    INPUT_COLUMNS=( 5 6 10 )
+    TEST_INPUT_COLUMNS=( 5 6 10 )
+    LABEL_COLUMN=4
+    INPUT_COUNT=3
+  elif [ "$TASK" = "MultiRC" ]
+  then
+    INPUT_COLUMNS=( 2 3 4 )
+    TEST_INPUT_COLUMNS=( 2 3 4 )
+    LABEL_COLUMN=5
+    INPUT_COUNT=3
   fi
 
   # Strip out header and filter lines that don't have expected number of fields.
