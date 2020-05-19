@@ -24,6 +24,6 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir checkpoints_BoolQ \
+    --save-dir /jagupard13/scr1/mhahn/checkpoints_BoolQ \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --skip-invalid-size-inputs-valid-test; # Exception: Size of sample #2904 is invalid (=555) since max_positions=512, skip this example with

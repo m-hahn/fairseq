@@ -1,11 +1,12 @@
-TOTAL_NUM_UPDATES=413272  # 10 epochs through QQP for bsz 16, adapted for reducing batch size from 16 to 4
-WARMUP_UPDATES=88318      # 6 percent of the number of updates
+# COPA2: So far doesn't give dev accuracies >70%
+TOTAL_NUM_UPDATES=300  # 
+WARMUP_UPDATES=20      # 6 percent of the number of updates
 LR=1e-05                # Peak LR for polynomial LR scheduler.
 NUM_CLASSES=2
-MAX_SENTENCES=4        # Batch size.
+MAX_SENTENCES=16        # Batch size.
 ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
 
-~/python-py37-mhahn train.py QQP-bin/ \
+~/python-py37-mhahn train.py COPA2-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
@@ -24,5 +25,5 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir checkpoints_QQP \
+    --save-dir checkpoints_COPA2 \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;
