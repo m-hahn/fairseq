@@ -1,5 +1,5 @@
-TOTAL_NUM_UPDATES=2036  # 10 epochs through RTE for bsz 16
-WARMUP_UPDATES=122      # 6 percent of the number of updates
+TOTAL_NUM_UPDATES=4705  # 10 epochs through RTE for bsz 16
+WARMUP_UPDATES=322      # 6 percent of the number of updates
 LR=2e-05                # Peak LR for polynomial LR scheduler.
 NUM_CLASSES=2
 MAX_SENTENCES=2        # Batch size.
@@ -24,6 +24,6 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir /jagupard13/scr1/mhahn/checkpoints_BoolQ \
+    --save-dir /jagupard13/scr2/mhahn/checkpoints_BoolQ \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric \
     --skip-invalid-size-inputs-valid-test; # Exception: Size of sample #2904 is invalid (=555) since max_positions=512, skip this example with
