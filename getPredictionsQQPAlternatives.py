@@ -1,9 +1,9 @@
 from fairseq.models.roberta import RobertaModel
 
 roberta = RobertaModel.from_pretrained(
-    'checkpoints_RTE/',
+    'checkpoints_QQP/',
     checkpoint_file='checkpoint_best.pt',
-    data_name_or_path='RTE-bin'
+    data_name_or_path='QQP-bin'
 )
 
 import torch
@@ -14,14 +14,17 @@ ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/test_alternatives.tsv') as fin:
-  with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/test_alternatives_predictions_fairseq.tsv', "w") as outFile:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_c.tsv') as fin:
+  with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictions_fairseq.tsv', "w") as outFile:
     while True:
         line = next(fin).strip()
         if line == "#####":
-           next(fin) # the original
-           separation = int(next(fin).strip()) # position of separation
-           next(fin)
+           original = next(fin) # the original
+           separation = [int(x) for x in next(fin).strip().split(" ")][0]+1 # position of separation
+           tokenized = next(fin)
+#           print(original)
+ #          print(tokenized)
+  #         print(separation)
            line = next(fin)
         #print(line)
         subset, sentences = line.strip().split("\t")
@@ -45,5 +48,5 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/test_alternatives.tsv') as
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([sentences[0], sentences[1], str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
+        print("\t".join([sentences[0], sentences[1], str(prediction[1]), prediction_label]), file=outFile)
 
