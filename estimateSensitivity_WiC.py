@@ -131,7 +131,8 @@ for alternative in alternatives:
    #  print(variant)
      try:
        assert alternatives_predictions_binary[variant] in ["0", "1"], alternatives_predictions_binary[variant]
-       valuesPerVariant[variant] = 1 if alternatives_predictions_binary[variant] == "1" else -1
+#       valuesPerVariant[variant] = 1 if alternatives_predictions_binary[variant] == "1" else -1
+       valuesPerVariant[variant] = alternatives_predictions_float[variant]
        weightsPerVariant[variant] = 0.5/POSITIVE_RATIO_DATASET if alternatives_predictions_binary[variant] == "1" else 0.5/(1-POSITIVE_RATIO_DATASET)
 #       valuesPerVariant[variant] = float(alternatives_predictions_float[variant] )
      #  if len(valuesPerVariant) % 100 == 0:
