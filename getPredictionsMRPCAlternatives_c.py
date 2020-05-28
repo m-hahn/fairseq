@@ -1,9 +1,9 @@
 from fairseq.models.roberta import RobertaModel
 
 roberta = RobertaModel.from_pretrained(
-    'checkpoints_RTE/',
+    'checkpoints_MRPC/',
     checkpoint_file='checkpoint_best.pt',
-    data_name_or_path='RTE-bin'
+    data_name_or_path='MRPC-bin'
 )
 
 import torch
@@ -15,8 +15,8 @@ roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
 lineNumbers = 0
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv', "r") as fin:
-  with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predictions_fairseq.tsv', "w") as outFile:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_c.tsv', "r") as fin:
+  with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_c_predictions_fairseq.tsv', "w") as outFile:
     while True:
         lineNumbers += 1
         try:
@@ -25,22 +25,22 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv', "
            print("UnicodeDecodeError", lineNumbers)
            continue
         if line == "#####":
-           next(fin) # the original
+           originalSentences = next(fin) # the original
            separation = int(next(fin).strip()) # position of separation
-           next(fin)
+           tokenizedSentences = next(fin)
            line = next(fin)
         #print(line)
         subset, sentences = line.strip().split("\t")
         sentences = sentences.strip().split(" ")
+ #       print(sentences, separation)
         sentences = [sentences[:separation], sentences[separation:]]
+#        print(sentences)
+        assert len(sentences[1]) > 3, (line, separation, sentences)
+#        quit()
         for i in range(2):
-          sentences[i] = "".join(sentences[i])
-          sentences[i] = sentences[i].replace("▁", " ")
-          if "<" in sentences[i]:
-            sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
-          if ">" in sentences[i]:
-            sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
-          sentences[i] = sentences[i].strip()
+          sentences[i] = ("".join(sentences[i])).replace("▁", " ").replace("</s>", "").strip()
+        assert len(sentences[1]) > 3, (line, separation, sentences)
+        assert sentences[0].endswith("."), (line, separation, sentences)
 #        print(sentences)
         if tuple(sentences) in evaluatedSoFar:
            continue
@@ -51,5 +51,5 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv', "
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([sentences[0], sentences[1], str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
+        print("\t".join([sentences[0], sentences[1], str(prediction[1]), str(prediction_label)]), file=outFile)
 

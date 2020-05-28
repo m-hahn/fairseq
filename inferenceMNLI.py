@@ -1,5 +1,5 @@
 # from https://github.com/pytorch/hub/blob/master/pytorch_fairseq_roberta.md
-
+import torch
 # Download RoBERTa already finetuned for MNLI
 roberta = torch.hub.load('pytorch/fairseq', 'roberta.large.mnli')
 roberta.eval()  # disable dropout for evaluation

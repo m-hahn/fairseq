@@ -12,6 +12,9 @@ nsamples, ncorrect = 0, 0
 def mean(values):
    return sum(values)/len(values)
 
+sensitivityHistogram = [0 for _ in range(40)]
+
+
 def variance(values):
    return mean([x**2 for x in values]) - mean(values)**2
 
@@ -51,7 +54,9 @@ shuffle(alternatives)
 
 sensitivities = []
 
-for alternative in alternatives:
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinarySensitivity", file=outFile)
+ for alternative in alternatives:
    if len(alternative) < 5:
       continue
    variants_set = set()
@@ -154,8 +159,17 @@ for alternative in alternatives:
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
+   sensitivityHistogram[int(2*sensitivity)] += 1
    sensitivities.append(sensitivity)
    print(sensitivities)
    print("Average sensitivity so far", sum(sensitivities)/len(sensitivities))
+   print(original, "\t", sensitivity, file=outFile)
+
+print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
+print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
+
+
+sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
+print(sensitivityHistogram/sensitivityHistogram.sum())
 
 

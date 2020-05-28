@@ -1,9 +1,8 @@
 import math
 import sys
-import torch
 task = sys.argv[1]
 
-assert task == "CoLA"
+assert task == "RTE"
 
 def mean(values):
    return sum(values)/len(values)
@@ -12,9 +11,7 @@ sensitivityHistogram = [0 for _ in range(40)]
 
 
 def variance(values):
-   values = values.exp()
-   values = 2*values-1 # make probabilities rescale to [-1, 1]
-   return float(((values-values.mean(dim=0)).pow(2).mean(dim=0)).sum())
+   return mean([x**2 for x in values]) - mean(values)**2
 
 from scipy.optimize import linprog
 
@@ -30,30 +27,24 @@ from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-
-averageLabel = [0,0,0]
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/CoLA/dev_alternatives_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
      if len(line) == 2:
        line.append("0.0")
-     sentence, prediction_log, prediction_discrete = line
-     alternatives_predictions_float[sentence.strip()] = torch.FloatTensor([float(prediction_log)])
-     averageLabel[0]+=1
-     averageLabel[1]+=math.exp(float(prediction_log))
-     averageLabel[2]+=(math.exp(float(prediction_log)))**2
-  print(len(alternatives_predictions_float))
+     sentence1, sentence2, cont, binary = line
+     sentence = sentence1+" "+sentence2
+     cont = float(cont)
+     cont = 2*cont - 1
+     alternatives_predictions_binary[sentence.strip()] = binary.strip()
+     alternatives_predictions_float[sentence.strip()] = float(cont)
+  print(len(alternatives_predictions_binary))
 
-print("Average Label", 2*averageLabel[1]/averageLabel[0]-1)
-print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
-#quit()
+print(list(alternatives_predictions_binary.items())[:10])
 
-print(list(alternatives_predictions_float.items())[:10])
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/CoLA/dev_alternatives.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -70,6 +61,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    alternative = alternative.split("\n")
    original = alternative[0]
    print(original)
+   questionMarks = [int(x) for x in alternative[1].split(" ")]
+
    tokenized = alternative[1].split(" ")
    for variant in alternative[3:]:
       #print(variant)
@@ -77,18 +70,30 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
          continue
 
       subset, sentence= variant.strip().split("\t")
-      sentence = "".join(sentence.strip().split(" "))
-      sentence = sentence.replace("▁", " ")
-      if "<" in sentence:
-        sentence = sentence[sentence.rfind("<")+1:]
-      if ">" in sentence:
-        sentence = sentence[sentence.rfind(">")+1:]
-      sentence = sentence.strip()
-      if sentence not in alternatives_predictions_float:
+
+      sentence = sentence.strip().split(" ")
+      sentence1 = sentence[:questionMarks[0]]
+      sentence2 = sentence[questionMarks[0]:]
+
+      sentences = [sentence1, sentence2]
+      for i in range(2):
+        sentences[i] = "".join(sentences[i])
+        sentences[i] = sentences[i].replace("▁", " ")
+        if "<" in sentences[i]:
+          sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
+        if ">" in sentences[i]:
+          sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
+        sentences[i] = sentences[i].strip()
+      sentencePairResult = tuple(sentences) 
+      sentence = sentencePairResult[0] + " " + sentencePairResult[1]
+      if sentence not in alternatives_predictions_binary:
          print("DID NOT FIND", sentence)
          assert False
          continue
-      assert sentence in alternatives_predictions_float, sentence
+      else:
+         pass
+#         print("FOUND", sentence)
+      assert sentence in alternatives_predictions_binary, sentence
 
 
       variants_set.add(sentence)
@@ -101,7 +106,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    for variant in variants_set:
    #  print(variant)
      try:
-       valuesPerVariant[variant] = alternatives_predictions_float[variant]
+       assert alternatives_predictions_binary[variant] in ["0", "1"], alternatives_predictions_binary[variant]
+       valuesPerVariant[variant] = 1 if alternatives_predictions_binary[variant] == "1" else -1
 #       valuesPerVariant[variant] = float(alternatives_predictions_float[variant] )
      #  if len(valuesPerVariant) % 100 == 0:
       #   print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set), variant)
@@ -114,7 +120,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
 
    varianceBySubset = {}
    for subset in variants_dict:
-       values = torch.stack([ valuesPerVariant[x] for x in variants_dict[subset]], dim=0)
+       values = [ valuesPerVariant[x] for x in variants_dict[subset]]
        #print(subset, mean(values), variance(values))
        varianceBySubset[subset] = variance(values)
 #   print(varianceBySubset)

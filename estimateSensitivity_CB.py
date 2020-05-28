@@ -8,6 +8,9 @@ assert task == "CB"
 def mean(values):
    return sum(values)/len(values)
 
+sensitivityHistogram = [0 for _ in range(40)]
+
+
 def variance(values):
    values = values.exp()
    return float(((values-values.mean(dim=0)).pow(2).mean(dim=0)).sum())
@@ -26,7 +29,7 @@ from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/CB/dev_alternatives_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/CB/dev_alternatives_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
@@ -40,13 +43,15 @@ with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/CB/dev_alternatives_predictions_fa
 
 print(list(alternatives_predictions_float.items())[:10])
 
-with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/CB/dev_alternatives_c.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/CB/dev_alternatives_c.tsv", "r", encoding='utf-8', errors='replace') as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
 sensitivities = []
 
-for alternative in alternatives:
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinarySensitivity", file=outFile)
+ for alternative in alternatives:
    if len(alternative) < 5:
       continue
    variants_set = set()
@@ -67,6 +72,7 @@ for alternative in alternatives:
       sentence = sentence.strip().split(" ")
       sentence = "".join(sentence)
       sentence = sentence.replace("▁", " ").strip()
+      #print("##"+sentence+"##")
       if sentence not in alternatives_predictions_float:
          print("DID NOT FIND", sentence)
          assert False
@@ -121,6 +127,16 @@ for alternative in alternatives:
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
+   sensitivityHistogram[int(2*sensitivity)] += 1
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
+   print(original, "\t", sensitivity, file=outFile)
+
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
+print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
+
+
+sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
+print(sensitivityHistogram/sensitivityHistogram.sum())
+
+

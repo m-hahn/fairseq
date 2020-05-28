@@ -8,6 +8,9 @@ assert task == "WiC"
 def mean(values):
    return sum(values)/len(values)
 
+sensitivityHistogram = [0 for _ in range(40)]
+
+
 def variance(values):
    values, weights = zip(*values)
    values = torch.FloatTensor(values)
@@ -75,7 +78,9 @@ with open(f"/u/scr/mhahn/PRETRAINED/SuperGLUE/WiC/dev_alternatives_predictions_f
 
 sensitivities = []
 
-for alternative in alternatives:
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinarySensitivity", file=outFile)
+ for alternative in alternatives:
    if len(alternative) < 5:
       continue
    variants_set = set()
@@ -170,12 +175,20 @@ for alternative in alternatives:
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
+   sensitivityHistogram[int(2*sensitivity)] += 1
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
+   print(original, "\t", sensitivity, file=outFile)
+
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 
 
 print("Average Label", averageLabel[1]/averageLabel[0])
 print("Fraction positive Labels", (averageLabel[3])/averageLabel[0])
 print("Label Variance", (averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
+
+
+import torch
+sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
+print(sensitivityHistogram/sensitivityHistogram.sum())
 
