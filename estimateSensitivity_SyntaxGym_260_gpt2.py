@@ -3,7 +3,7 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "SyntaxGym_248"
+assert task == "SyntaxGym_260"
 
 def mean(values):
    return sum(values)/len(values)
@@ -23,8 +23,7 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    c = [-x for x in perSubsetSensitivities]
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
-   return -res.fun, res.x
-
+   return -res.fun
 import random
 from random import shuffle
 
@@ -35,11 +34,11 @@ averageLabel = [0,0,0]
 
 
 
-originalSentences = open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives_raw.tsv", "r").read().strip().split("\n")
+originalSentences = open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_raw.tsv", "r").read().strip().split("\n")
 
 predictions = {}
 sentencesInOrder = []
-with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives_raw_gpt2.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_raw_gpt2.tsv", "r") as inFile:
   header = next(inFile)
   assert header == "sentence_id\ttoken_id\ttoken\tsurprisal\n"
   data2 = inFile.read().split("\n")
@@ -99,7 +98,7 @@ print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/av
 
 print(list(alternatives_predictions_float.items())[:10])
 
-with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives.tsv", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -156,9 +155,9 @@ for alternative in alternatives:
 
 #   print(varianceBySubset)
 
-#with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
-#print("Original", "\t", "BinarySensitivity", file=outFile)
-for alternative in alternatives:
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinarySensitivity", file=outFile)
+ for alternative in alternatives:
    if len(alternative) < 5:
       continue
    alternative = alternative.split("\n")
@@ -193,40 +192,12 @@ for alternative in alternatives:
    x_bounds = [(0,1) for _ in range(len(subsetsEnumeration))]
    perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
 
-   sensitivity, assignment = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
    sensitivityHistogram[int(2*sensitivity)] += 1
-   print("=========", original)
-   for i in range(len(subsetsEnumeration)):
-      assigned = assignment[i].item()
-      if assigned > 1e-2 and perSubsetSensitivities[i] > 0.2:
-         tokenized2 = ("".join([tokenized[j] if subsetsEnumeration[i][j] == "0" else "####" for j in range(len(tokenized))])).replace("▁", " ")
-         
-         print("..", tokenized2)
-         print(subsetsEnumeration[i], "Weight:", assigned, "Sensitivity:", perSubsetSensitivities[i])
-         print(variants_dict[original][subsetsEnumeration[i]])
-         sentences = tokenized2.split("@")
-         result = [[], []]
-         for s in range(1):
-           sentence = sentences[s]
-           while "####" in sentence:
-              q = sentence.index("####")
-              left, sentence = sentence[:q].strip(), sentence[q+4:].strip()
-              if q == 0:
-                 if len(result[s]) == 0:
-                     result[s].append("####")
-                 else:
-                     result[s][-1] += "####"
-              else:
-                result[s].append(left)
-                result[s].append("####")
-  #         if len(sentence) > 0:
- #             result[s].append(sentence)
-#              print(result[0])
-#         print({"premise" : result[0], "hypothesis" : result[1], "subset" : subsetsEnumeration[i], "original" : original}, ",", file=outFile)
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
-#   print(original, "\t", sensitivity, file=outFile)
+   print(original, "\t", sensitivity, file=outFile)
 
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
