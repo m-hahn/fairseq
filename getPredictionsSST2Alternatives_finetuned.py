@@ -21,7 +21,7 @@ roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
 with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned.tsv', "w") as outFile:
- for group in ["c", "d"]:
+ for group in ["c", "d", "e"]:
   try:
    with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_{group}_finetuned.tsv', 'r') as fin:
     while True:
@@ -31,7 +31,11 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predict
            next(fin) # the tokenized version
            line = next(fin)
         #print(line)
-        subset, sentences = line.strip().split("\t")
+        try:
+           subset, sentences = line.strip().split("\t")
+        except ValueError:
+           print("ValueError: ", line)
+           continue
         sentences = [sentences.strip().split(" ")]
         for i in range(1):
           sentences[i] = "".join(sentences[i])

@@ -14,8 +14,9 @@ roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
 lineNumbers = 0
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c.tsv', "r") as fin:
-  with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c_predictions_fairseq.tsv', "w") as outFile:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c_predictions_fairseq.tsv', "w") as outFile:
+ for group in "cdefghi":
+  with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_{group}.tsv', "r") as fin:
     while True:
         lineNumbers += 1
         try:
@@ -23,6 +24,8 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c.tsv', 
         except UnicodeDecodeError:
            print("UnicodeDecodeError", lineNumbers)
            continue
+        except StopIteration:
+           break
         if line == "#####":
            originalSentences = next(fin) # the original
            separation = int(next(fin).strip()) # position of separation
