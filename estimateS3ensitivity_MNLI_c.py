@@ -30,12 +30,17 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
    return -res.fun
-
 from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
 predictions_all = []
+
+
+
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+   itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
+
 with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
@@ -67,8 +72,8 @@ for group in "cdefghi":
 
 sensitivities = []
 
-with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
- print("Original", "\t", "BinarySensitivity", file=outFile)
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinaryS3ensitivity", file=outFile)
  for alternative in alternatives:
    if len(alternative) < 5:
       continue
@@ -76,11 +81,31 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    variants_dict = {}
    
    alternative = alternative.split("\n")
-   original = alternative[0]
-   print(original)
+   original = alternative[0].strip()
+   #print(original+"#")
+   #print(list(itemsPredictions.items())[:10])
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
-   tokenized = alternative[1].split(" ")
+   tokenized = alternative[2].strip().split(" ")
+
+
+   tokenized1 = tokenized[:questionMarks[0]]
+   tokenized2 = tokenized[questionMarks[0]:]
+
+   tokenizeds = [tokenized1, tokenized2]
+   for i in range(2):
+       tokenizeds[i] = ("".join(tokenizeds[i])).replace("▁", " ").replace("</s>", "").strip()
+   tokenizedPairResult = tuple(tokenizeds) 
+   original = tokenizedPairResult[0] + "@ " + tokenizedPairResult[1]
+
+   print(original)
+   assert original in itemsPredictions
+   entry = itemsPredictions[original]
+   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[3].split(" ")]).exp()
+   #print(predictionForOriginal)
+   #quit()
+
+
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
@@ -126,9 +151,13 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
 
    varianceBySubset = {}
    for subset in variants_dict:
-       values = [ valuesPerVariant[x] for x in variants_dict[subset]]
+       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]]).exp()
        #print(subset, mean(values), variance(values))
-       varianceBySubset[subset] = variance(values)
+ #      print(predictionForOriginal)
+  #     print(values, values.size())
+      
+#       quit()
+       varianceBySubset[subset] = 4*(values.mean(dim=0)-predictionForOriginal).pow(2).max()
 #   print(varianceBySubset)
 
 
