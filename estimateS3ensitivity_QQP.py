@@ -3,7 +3,7 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "RTE"
+assert task == "QQP"
 
 def mean(values):
    return sum(values)/len(values)
@@ -11,7 +11,16 @@ def mean(values):
 sensitivityHistogram = [0 for _ in range(40)]
 
 def variance(values):
-   return mean([x**2 for x in values]) - mean(values)**2
+   values, weights = zip(*values)
+   values = torch.FloatTensor(values)
+   weights = torch.FloatTensor(weights)
+   weights = weights/weights.sum()
+   #print(values)
+   #print(weights)
+   var = (values.pow(2) * weights).sum() - (values*weights).sum().pow(2)
+   #print(var)
+   return var
+#   return mean([x**2 for x in values]) - mean(values)**2
 
 from scipy.optimize import linprog
 
@@ -22,17 +31,18 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
    return -res.fun
+
 from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-predictions_all = []
 
+averageLabel = [0,0,0,0]
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictions_fairseq.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
@@ -45,17 +55,23 @@ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predic
      assert cont <= 0.0
      alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
      alternatives_predictions_float[sentence.strip()] = cont
-     predictions_all.append(cont)
+     averageLabel[0]+=1
+     averageLabel[1]+=(float(cont))
+     averageLabel[2]+=((float(cont)))**2
+     averageLabel[3]+=(float(binary))
   print(len(alternatives_predictions_binary))
 
-predictions_all = torch.FloatTensor(predictions_all)
-variance_predictions = predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2)
-print(predictions_all)
-print(predictions_all.mean(dim=0))
-print(variance_predictions)
+print("Average Label", averageLabel[1]/averageLabel[0])
+print("Fraction positive Labels", (averageLabel[3])/averageLabel[0])
+print("Label Variance", (averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
 #quit()
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
+
+POSITIVE_RATIO_DATASET = 0.16 #0.3652573
+
+print(list(alternatives_predictions_binary.items())[:10])
+
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_c.tsv", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -77,8 +93,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    tokenized = alternative[2].strip().split(" ")
 
 
-   tokenized1 = tokenized[:questionMarks[0]]
-   tokenized2 = tokenized[questionMarks[0]:]
+   tokenized1 = tokenized[:questionMarks[0]+1]
+   tokenized2 = tokenized[questionMarks[0]+1:]
 
    tokenizeds = [tokenized1, tokenized2]
    for i in range(2):
@@ -89,10 +105,13 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    print(original)
    assert original in itemsPredictions
    entry = itemsPredictions[original]
-   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[2].split(" ")]).exp()
+   predictionForOriginal = math.exp(float(entry[2]))
    assert predictionForOriginal <= 1, entry
    #print(predictionForOriginal)
    #quit()
+
+
+
 
 
    for variant in alternative[3:]:
@@ -100,28 +119,31 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
       if len(variant) < 5:
          continue
 
-      subset, sentence= variant.strip().split("\t")
+      try:
+         subset, sentence= variant.strip().split("\t")
+      except ValueError:
+         print("VARIANT is illformed: ", variant)
+         pass
 
       sentence = sentence.strip().split(" ")
-      sentence1 = sentence[:questionMarks[0]]
-      sentence2 = sentence[questionMarks[0]:]
+      sentence1 = sentence[:questionMarks[0]+1]
+      sentence2 = sentence[questionMarks[0]+1:]
 
       sentences = [sentence1, sentence2]
       for i in range(2):
         sentences[i] = "".join(sentences[i])
         sentences[i] = sentences[i].replace("▁", " ")
         if "<" in sentences[i]:
-          assert False, "does this happen?"
+ #         assert False, ("does this happen?", sentences)
           sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
         if ">" in sentences[i]:
-          assert False, "does this happen?"
+#          assert False, ("does this happen?", sentences)
           sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
         sentences[i] = sentences[i].strip()
       sentencePairResult = tuple(sentences) 
       sentence = sentencePairResult[0] + " " + sentencePairResult[1]
       if sentence not in alternatives_predictions_binary:
-         print("DID NOT FIND", sentence)
-         assert False
+         print("DID NOT FIND", sentence, sentences)
          continue
       else:
          pass
@@ -136,12 +158,15 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
   # print((result))
    print(len(variants_set), "variants")
    valuesPerVariant = {}
+   weightsPerVariant = {}
    for variant in variants_set:
    #  print(variant)
      try:
        assert alternatives_predictions_binary[variant] in [0, 1], alternatives_predictions_binary[variant]
+#       valuesPerVariant[variant] = alternatives_predictions_float[variant]
 #       valuesPerVariant[variant] = 1 if alternatives_predictions_binary[variant] == "1" else -1
-       valuesPerVariant[variant] = alternatives_predictions_float[variant] 
+#       weightsPerVariant[variant] = 0.5/POSITIVE_RATIO_DATASET if alternatives_predictions_binary[variant] == "1" else 0.5/(1-POSITIVE_RATIO_DATASET)
+       valuesPerVariant[variant] = float(alternatives_predictions_float[variant] )
      #  if len(valuesPerVariant) % 100 == 0:
       #   print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set), variant)
      except ValueError:

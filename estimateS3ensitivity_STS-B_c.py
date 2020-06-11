@@ -3,15 +3,23 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "RTE"
+assert task == "STS-B"
 
 def mean(values):
    return sum(values)/len(values)
 
-sensitivityHistogram = [0 for _ in range(40)]
+sensitivityHistogram = [0 for _ in range(100)]
 
 def variance(values):
-   return mean([x**2 for x in values]) - mean(values)**2
+#   vectorized = torch.zeros(len(values), 3)
+#   for i in range(len(values)):
+#      vectorized[i][values[i]] = 1
+#   print(values)
+   vectorized = torch.FloatTensor(values) #.exp() #[:, 2:] # only classifying 0/1 vs 2
+#   vectorized = torch.FloatTensor(values)[:, :1:] # only classifying 1 vs 0/2
+#   vectorized = torch.stack([vectorized[:, :2].sum(dim=1), vectorized[:, 2]], dim=1) # only classifying 0/1 vs 2
+#   vectorized = 2*vectorized-1
+   return ((vectorized.pow(2).mean(dim=0) - vectorized.mean(dim=0).pow(2)).max())/variance_predictions
 
 from scipy.optimize import linprog
 
@@ -22,6 +30,7 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
    return -res.fun
+
 from random import shuffle
 
 alternatives_predictions_binary = {}
@@ -29,33 +38,31 @@ alternatives_predictions_float = {}
 predictions_all = []
 
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     if len(line) == 2:
-       line.append("0.0")
-     sentence1, sentence2, cont, binary = line
+     sentence1, sentence2,  cont = line
      sentence = sentence1+" "+sentence2
      cont = float(cont)
-     assert cont <= 0.0
-     alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
      alternatives_predictions_float[sentence.strip()] = cont
      predictions_all.append(cont)
   print(len(alternatives_predictions_binary))
 
 predictions_all = torch.FloatTensor(predictions_all)
-variance_predictions = predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2)
+variance_predictions = float(predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2))
 print(predictions_all)
 print(predictions_all.mean(dim=0))
 print(variance_predictions)
 #quit()
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
+print(list(alternatives_predictions_binary.items())[:10])
+
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -89,10 +96,13 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    print(original)
    assert original in itemsPredictions
    entry = itemsPredictions[original]
-   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[2].split(" ")]).exp()
-   assert predictionForOriginal <= 1, entry
+   predictionForOriginal = float(entry[2])
+   #assert predictionForOriginal <= 1, entry
    #print(predictionForOriginal)
    #quit()
+
+
+
 
 
    for variant in alternative[3:]:
@@ -100,7 +110,11 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
       if len(variant) < 5:
          continue
 
-      subset, sentence= variant.strip().split("\t")
+      try:
+         subset, sentence= variant.strip().split("\t")
+      except ValueError:
+         print("VARIANT is illformed: ", variant)
+         pass
 
       sentence = sentence.strip().split(" ")
       sentence1 = sentence[:questionMarks[0]]
@@ -108,25 +122,14 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
 
       sentences = [sentence1, sentence2]
       for i in range(2):
-        sentences[i] = "".join(sentences[i])
-        sentences[i] = sentences[i].replace("▁", " ")
-        if "<" in sentences[i]:
-          assert False, "does this happen?"
-          sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
-        if ">" in sentences[i]:
-          assert False, "does this happen?"
-          sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
-        sentences[i] = sentences[i].strip()
+          sentences[i] = ("".join(sentences[i])).replace("▁", " ").replace("</s>", "").strip()
       sentencePairResult = tuple(sentences) 
       sentence = sentencePairResult[0] + " " + sentencePairResult[1]
-      if sentence not in alternatives_predictions_binary:
+      if sentence not in alternatives_predictions_float:
          print("DID NOT FIND", sentence)
          assert False
          continue
-      else:
-         pass
-#         print("FOUND", sentence)
-      assert sentence in alternatives_predictions_binary, sentence
+      assert sentence in alternatives_predictions_float, sentence
 
 
       variants_set.add(sentence)
@@ -139,11 +142,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    for variant in variants_set:
    #  print(variant)
      try:
-       assert alternatives_predictions_binary[variant] in [0, 1], alternatives_predictions_binary[variant]
-#       valuesPerVariant[variant] = 1 if alternatives_predictions_binary[variant] == "1" else -1
-       valuesPerVariant[variant] = alternatives_predictions_float[variant] 
-     #  if len(valuesPerVariant) % 100 == 0:
-      #   print(valuesPerVariant[variant], valuesPerVariant[variant] == True, len(valuesPerVariant), len(variants_set), variant)
+       valuesPerVariant[variant] = alternatives_predictions_float[variant]
      except ValueError:
         print("VALUE ERROR", variant)
         valuesPerVariant[variant] = 0
@@ -153,9 +152,9 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
 
    varianceBySubset = {}
    for subset in variants_dict:
-       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]]).exp()
-       varianceBySubset[subset] = 4*float((values.mean(dim=0)-predictionForOriginal).pow(2).max())
-       assert varianceBySubset[subset] <= 4, varianceBySubset[subset]
+       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]])
+       varianceBySubset[subset] = 4*float((values.mean(dim=0)/5-predictionForOriginal/5).pow(2).max())
+#   print(varianceBySubset)
 
 
    subsetsEnumeration = list(variants_dict)
