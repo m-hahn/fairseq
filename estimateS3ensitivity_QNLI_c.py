@@ -2,7 +2,7 @@ import math
 import sys
 task = sys.argv[1]
 
-assert task == "MNLI"
+assert task == "QNLI"
 
 def mean(values):
    return sum(values)/len(values)
@@ -30,6 +30,7 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
    return -res.fun
+
 from random import shuffle
 
 alternatives_predictions_binary = {}
@@ -37,21 +38,20 @@ alternatives_predictions_float = {}
 predictions_all = []
 
 
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QNLI/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QNLI/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     #print(line)
-     #quit()
-     sentence1, sentence2, binary, cont = line
+     sentence1, sentence2, cont, binary = line
      sentence = sentence1+" "+sentence2
-     cont = [float(x) for x in cont.split(" ")]
-     alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
+     cont = float(cont)
+     assert cont <= 0.0
+     assert binary in ["entailment", "not_entailment"]
+     alternatives_predictions_binary[sentence.strip()] = 1 if binary == "entailment" else -1
      alternatives_predictions_float[sentence.strip()] = cont
      predictions_all.append(cont)
   print(len(alternatives_predictions_binary))
@@ -63,11 +63,8 @@ print(predictions_all.mean(dim=0))
 print(variance_predictions)
 #quit()
 
-print(list(alternatives_predictions_binary.items())[:10])
-alternatives = []
-for group in "cdefghi":
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_{group}.tsv", "r", encoding='utf-8') as inFile:
-  alternatives += inFile.read().strip().split("#####\n")
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QNLI/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
+  alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
 sensitivities = []
@@ -82,8 +79,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
-   #print(original+"#")
-   #print(list(itemsPredictions.items())[:10])
+   print(original)
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
    tokenized = alternative[2].strip().split(" ")
@@ -101,7 +97,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    print(original)
    assert original in itemsPredictions
    entry = itemsPredictions[original]
-   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[3].split(" ")]).exp()
+   predictionForOriginal = math.exp(float(entry[2]))
    assert predictionForOriginal <= 1, entry
    #print(predictionForOriginal)
    #quit()
@@ -125,8 +121,11 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
       sentence = sentencePairResult[0] + " " + sentencePairResult[1]
       if sentence not in alternatives_predictions_binary:
          print("DID NOT FIND", sentence)
-      #   assert False
+         assert False
          continue
+      else:
+         pass
+#         print("FOUND", sentence)
       assert sentence in alternatives_predictions_binary, sentence
 
 
@@ -140,9 +139,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    for variant in variants_set:
    #  print(variant)
      try:
-       assert alternatives_predictions_binary[variant] in [0, 1, 2], alternatives_predictions_binary[variant]
-       valuesPerVariant[variant] = alternatives_predictions_float[variant]
 #       valuesPerVariant[variant] = alternatives_predictions_binary[variant]
+       valuesPerVariant[variant] = alternatives_predictions_float[variant]
      except ValueError:
         print("VALUE ERROR", variant)
         valuesPerVariant[variant] = 0
@@ -154,6 +152,9 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
    for subset in variants_dict:
        values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]]).exp()
        varianceBySubset[subset] = 4*float((values.mean(dim=0)-predictionForOriginal).pow(2).max())
+ #      if True or varianceBySubset[subset] > 1:
+#          print(values, predictionForOriginal, values.mean(dim=0), subset)
+ 
        assert varianceBySubset[subset] <= 4, varianceBySubset[subset]
 
 
@@ -175,7 +176,10 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   sensitivityHistogram[int(2*sensitivity)] += 1
+   try:
+      sensitivityHistogram[int(2*sensitivity)] += 1
+   except IndexError:
+      print("Index Error")
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
