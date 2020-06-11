@@ -31,25 +31,31 @@ do
 
   SPLITS="train dev"
   INPUT_COUNT=1
-  if [ "$TASK" = "MR" ]
+  if [ "$TASK" = "mr" ]
   then
     INPUT_COLUMNS=( 1 )
     TEST_INPUT_COLUMNS=( 1 )
     LABEL_COLUMN=2
     INPUT_COUNT=1
-  elif [ "$TASK" = "CR" ]
+  elif [ "$TASK" = "cr" ]
   then
     INPUT_COLUMNS=( 1 )
     TEST_INPUT_COLUMNS=( 1 )
     LABEL_COLUMN=2
     INPUT_COUNT=1
-  elif [ "$TASK" = "MPQA" ]
+  elif [ "$TASK" = "mpqa" ]
   then
     INPUT_COLUMNS=( 1 )
     TEST_INPUT_COLUMNS=( 1 )
     LABEL_COLUMN=2
     INPUT_COUNT=1
-  elif [ "$TASK" = "SUBJ" ]
+  elif [ "$TASK" = "subj" ]
+  then
+    INPUT_COLUMNS=( 1 )
+    TEST_INPUT_COLUMNS=( 1 )
+    LABEL_COLUMN=2
+    INPUT_COUNT=1
+  elif [ "$TASK" = "trec" ]
   then
     INPUT_COLUMNS=( 1 )
     TEST_INPUT_COLUMNS=( 1 )
