@@ -1,11 +1,11 @@
-TOTAL_NUM_UPDATES=40935  # 10 epochs through subj for bsz 16
+TOTAL_NUM_UPDATES=40935  # 10 epochs through mpqa for bsz 16
 WARMUP_UPDATES=2456      # 6 percent of the number of updates
 LR=1e-05                # Peak LR for polynomial LR scheduler.
 NUM_CLASSES=2
 MAX_SENTENCES=16        # Batch size.
 ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
 
-~/python-py37-mhahn train.py subj-bin/ \
+~/python-py37-mhahn train.py mpqa-bin/ \
     --restore-file $ROBERTA_PATH \
     --max-positions 512 \
     --max-sentences $MAX_SENTENCES \
@@ -24,5 +24,5 @@ ROBERTA_PATH=/u/scr/mhahn/PRETRAINED/roberta.large.mnli/model.pt
     --fp16-init-scale 4 --threshold-loss-scale 1 --fp16-scale-window 128 \
     --max-epoch 10 \
     --find-unused-parameters \
-    --save-dir /jagupard18/scr1/mhahn/checkpoints_subj \
+    --save-dir /jagupard14/scr4/mhahn/checkpoints_mpqa \
     --best-checkpoint-metric accuracy --maximize-best-checkpoint-metric;

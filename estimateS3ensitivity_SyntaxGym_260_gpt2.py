@@ -32,13 +32,13 @@ alternatives_predictions_float = {}
 
 averageLabel = [0,0,0]
 
-
-
 originalSentences = open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_raw.tsv", "r").read().strip().split("\n")
+originalSentences += open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_datapoints_raw.tsv", "r").read().strip().split("\n")
 
 predictions = {}
 sentencesInOrder = []
-with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_raw_gpt2.tsv", "r") as inFile:
+for f in ["alternatives", "datapoints"]:
+ with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_{f}_raw_gpt2.tsv", "r") as inFile:
   header = next(inFile)
   assert header == "sentence_id\ttoken_id\ttoken\tsurprisal\n"
   data2 = inFile.read().split("\n")
@@ -77,7 +77,6 @@ with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_raw_gpt
     origSent = originalSentences[len(sentencesInOrder)].replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE")
     predictions[(origSent, reflexive)] = float(sentence[-3][3])
     sentencesInOrder.append(sent)
-#quit()
 #print(predictions)
 #quit()
 
@@ -115,8 +114,12 @@ for alternative in alternatives:
    alternative = alternative.split("\n")
    original = alternative[0]
    original = original.replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE")
-   print(original)
-   tokenized = alternative[2].split(" ")
+   tokenized = alternative[2].replace(" ", "").replace("▁", " ").replace("</s>", "").replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE").strip()
+
+   print(tokenized)
+   predictionOriginal = alternatives_predictions_float[tokenized]
+
+
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
@@ -154,8 +157,8 @@ for alternative in alternatives:
 
 #   print(varianceBySubset)
 
-with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w") as outFile:
- print("Original", "\t", "BinarySensitivity", file=outFile)
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinaryS3ensitivity", file=outFile)
  for alternative in alternatives:
    if len(alternative) < 5:
       continue
@@ -164,12 +167,18 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    original = original.replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE")
    print(original)
    tokenized = alternative[2].split(" ")
+   tokenized = alternative[2].replace(" ", "").replace("▁", " ").replace("</s>", "").replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE").strip()
+
+   print(tokenized)
+   predictionOriginal = alternatives_predictions_float[tokenized]
+
 
    varianceBySubset = {}
    for subset in variants_dict[original]:
        values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[original][subset]])
-       #print(subset, mean(values), variance(values))
-       varianceBySubset[subset] = variance(values)
+       assert float(values.abs().max()) <= 1
+       assert abs(predictionOriginal) <= 1
+       varianceBySubset[subset] = 4*float((values.mean()-predictionOriginal).pow(2))
 
 
 
