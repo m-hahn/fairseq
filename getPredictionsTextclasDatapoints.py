@@ -32,9 +32,6 @@ with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_datapoints_predictions_fair
            tokenized = next(fin).strip() # the tokenized version
         else:
            continue
-        #print(original)
-        #print(tokenized)
-#        assert False
         sentences = [tokenized.split(" ")]
         for i in range(1):
           sentences[i] = "".join(sentences[i])
@@ -50,7 +47,7 @@ with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_datapoints_predictions_fair
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([sentences[0], str(prediction[1]), prediction_label]), file=outFile)
+        print("\t".join([sentences[0], str(prediction[1] if len(prediction) == 2 else " ".join(str(y) for y in prediction)), prediction_label]), file=outFile)
     except StopIteration:
       pass     
   except FileNotFoundError:

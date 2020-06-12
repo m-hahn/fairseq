@@ -22,9 +22,10 @@ roberta.eval()
 evaluatedSoFar = set()
 with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_alternatives_predictions_finetuned_fairseq.tsv', "w") as outFile:
  for group in ["", "_d"]:
-  with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_alternatives_finetuned{group}.txt') as fin:
-   try:
-    while True:
+  try:
+   with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_alternatives_finetuned{group}.txt') as fin:
+    try:
+     while True:
         line = next(fin).strip()
         if line == "#####":
            next(fin) # the original
@@ -47,6 +48,8 @@ with open(f'/u/scr/mhahn/PRETRAINED/textclas/{model}_alternatives_predictions_fi
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([sentences[0], str(prediction[1]), prediction_label]), file=outFile)
-   except StopIteration:
+        print("\t".join([sentences[0], str(prediction[1] if len(prediction) == 2 else " ".join(str(y) for y in prediction)), prediction_label]), file=outFile)
+    except StopIteration:
       pass     
+  except FileNotFoundError:
+     pass
