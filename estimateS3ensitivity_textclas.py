@@ -150,7 +150,10 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s3ensitivities_{__file__}_{ta
    if str(sensitivity) == "nan":
       continue
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   sensitivityHistogram[int(2*sensitivity)] += 1
+   try:
+     sensitivityHistogram[int(2*sensitivity)] += 1
+   except IndexError:
+     pass
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)

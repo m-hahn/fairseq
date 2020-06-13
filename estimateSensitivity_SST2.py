@@ -111,9 +111,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    varianceBySubset = {}
    for subset in variants_dict:
        values = torch.stack([ valuesPerVariant[x] for x in variants_dict[subset]], dim=0)
-       #print(subset, mean(values), variance(values))
        varianceBySubset[subset] = variance(values)
-#   print(varianceBySubset)
 
 
    subsetsEnumeration = list(variants_dict)
@@ -136,15 +134,19 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/sensitivities_{__file__}", "w
    if str(sensitivity) == "nan":
       continue
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   sensitivityHistogram[int(2*sensitivity)] += 1
+   try:
+      sensitivityHistogram[int(2*sensitivity)] += 1
+   except IndexError:
+      print("Index Error")
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
 
+print("Examples", len(sensitivities))
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
 
-import torch
+
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())
 
