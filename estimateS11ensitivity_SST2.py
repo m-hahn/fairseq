@@ -3,12 +3,13 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "STS-B"
+assert task == "SST-2"
 
 def mean(values):
    return sum(values)/len(values)
 
-sensitivityHistogram = [0 for _ in range(100)]
+sensitivityHistogram = [0 for _ in range(40)]
+
 
 
 from scipy.optimize import linprog
@@ -25,44 +26,41 @@ from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-predictions_all = []
+
+averageLabel = [0,0,0]
 
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
-   itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+   itemsPredictions = dict([(x[0], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_fairseq.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     sentence1, sentence2,  cont = line
-     sentence = sentence1+" "+sentence2
-     cont = float(cont)
-     assert cont >= -1
-     assert cont <= 6
-     cont = max(min(cont, 5.0), 0.0) # This ensures that the normalized values really are in [-1,1]
-     alternatives_predictions_float[sentence.strip()] = cont
-     predictions_all.append(cont)
-  print(len(alternatives_predictions_binary))
+     if len(line) == 2:
+       line.append("0.0")
+     sentence, prediction_log, prediction_discrete = line
+     alternatives_predictions_float[sentence.strip()] = torch.FloatTensor([float(prediction_log)])
+     averageLabel[0]+=1
+     averageLabel[1]+=math.exp(float(prediction_log))
+     averageLabel[2]+=(math.exp(float(prediction_log)))**2
+  print(len(alternatives_predictions_float))
 
-predictions_all = torch.FloatTensor(predictions_all)
-variance_predictions = float(predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2))
-print(predictions_all)
-print(predictions_all.mean(dim=0))
-print(variance_predictions)
+print("Average Label", 2*averageLabel[1]/averageLabel[0]-1)
+print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
 #quit()
 
-print(list(alternatives_predictions_binary.items())[:10])
+print(list(alternatives_predictions_float.items())[:10])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/STS-B/dev_alternatives_c.tsv", "r", encoding='utf-8') as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_respectWordBoundaries.tsv", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
 sensitivities = []
 
-with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
- print("Original", "\t", "BinaryS1ensitivity", file=outFile)
+with open(f"/u/scr/mhahn/sensitivity/sensitivities/s11ensitivities_{__file__}", "w") as outFile:
+ print("Original", "\t", "BinaryS11ensitivity", file=outFile)
  for alternative in alternatives:
    if len(alternative) < 5:
       continue
@@ -71,53 +69,22 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
-   print(original)
-   questionMarks = [int(x) for x in alternative[1].split(" ")]
-
-   tokenized = alternative[2].strip().split(" ")
-
-
-   tokenized1 = tokenized[:questionMarks[0]]
-   tokenized2 = tokenized[questionMarks[0]:]
-
-   tokenizeds = [tokenized1, tokenized2]
-   for i in range(2):
-       tokenizeds[i] = ("".join(tokenizeds[i])).replace("▁", " ").replace("</s>", "").strip()
-   tokenizedPairResult = tuple(tokenizeds) 
-   original = tokenizedPairResult[0] + "@ " + tokenizedPairResult[1]
-
-   print(original)
+   print(original+"#")
    assert original in itemsPredictions
    entry = itemsPredictions[original]
    predictionForOriginal = float(entry[2])
-   #assert predictionForOriginal <= 1, entry
-   #print(predictionForOriginal)
-   #quit()
-
-
-
-
-
+   assert predictionForOriginal <= 0
+   print(entry)
+   tokenized = alternative[1].split(" ")
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
          continue
 
-      try:
-         subset, sentence= variant.strip().split("\t")
-      except ValueError:
-         print("VARIANT is illformed: ", variant)
-         pass
-
-      sentence = sentence.strip().split(" ")
-      sentence1 = sentence[:questionMarks[0]]
-      sentence2 = sentence[questionMarks[0]:]
-
-      sentences = [sentence1, sentence2]
-      for i in range(2):
-          sentences[i] = ("".join(sentences[i])).replace("▁", " ").replace("</s>", "").strip()
-      sentencePairResult = tuple(sentences) 
-      sentence = sentencePairResult[0] + " " + sentencePairResult[1]
+      subset, sentence= variant.strip().split("\t")
+      sentence = "".join(sentence.strip().split(" "))
+      sentence = sentence.replace("▁", " ")
+      sentence = sentence.strip()
       if sentence not in alternatives_predictions_float:
          print("DID NOT FIND", sentence)
          assert False
@@ -143,16 +110,27 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
         print("VALUE ERROR", variant)
         valuesPerVariant[variant] = 0
 
+
    varianceBySubset = {}
    for subset in variants_dict:
-       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]]) / 5
+       values = torch.stack([ valuesPerVariant[x] for x in variants_dict[subset]], dim=0).exp()
        varianceBySubset[subset] = 4*float((values.mean(dim=0) - values).pow(2).mean(dim=0).max())
        assert varianceBySubset[subset] <= 1, varianceBySubset[subset]
+#   print(varianceBySubset)
 
 
-   subsetsEnumeration = list(variants_dict)
+   subsetsEnumeration = sorted(list(variants_dict))
    if len(subsetsEnumeration) == 0:
      continue 
+   subsetsEnumeration2 = [subsetsEnumeration[0]]
+   #print(subsetsEnumeration)
+   for i in range(1, len(subsetsEnumeration)):
+     if subsetsEnumeration[i].index("1") == subsetsEnumeration[i-1].index("1"):
+        continue
+     subsetsEnumeration2.append(subsetsEnumeration[i])
+   subsetsEnumeration = subsetsEnumeration2
+   print(subsetsEnumeration)
+   #quit()
    N = len(subsetsEnumeration[0])
    A = [[0 for subset in range(len(subsetsEnumeration))] for inp in range(N)]
    for inp in range(N):
@@ -167,20 +145,18 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   if str(sensitivity) == "nan":
+      continue
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   try:
-      sensitivityHistogram[int(2*sensitivity)] += 1
-   except IndexError:
-      print("Index Error")
+   sensitivityHistogram[int(2*sensitivity)] += 1
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
 
-print("Examples", len(sensitivities))
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
 
-
+import torch
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())
 

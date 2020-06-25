@@ -1,5 +1,6 @@
 import math
 import sys
+import torch
 task = sys.argv[1]
 
 assert task == "MNLI"
@@ -87,11 +88,11 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    tokenizedPairResult = tuple(tokenizeds) 
    original = tokenizedPairResult[0] + "@ " + tokenizedPairResult[1]
 
-   print(original)
-   assert original in itemsPredictions
-   entry = itemsPredictions[original]
-   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[3].split(" ")]).exp()
-   assert predictionForOriginal <= 1, entry
+#   print(original)
+ #  assert original in itemsPredictions
+  # entry = itemsPredictions[original]
+   #predictionForOriginal = torch.FloatTensor([float(x) for x in entry[3].split(" ")]).exp()
+   #assert float(predictionForOriginal.max()) <= 1, entry
    #print(predictionForOriginal)
    #quit()
 

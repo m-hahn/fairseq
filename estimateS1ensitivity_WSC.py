@@ -135,8 +135,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
 
    varianceBySubset = {}
    for subset in variants_dict:
-       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]]).exp()
-       varianceBySubset[subset] = 4*float((values.mean(dim=0) - values).pow(2).mean(dim=0).max())
+       values = torch.FloatTensor([ valuesPerVariant[x] for x in variants_dict[subset]])
+       varianceBySubset[subset] = float((values.mean(dim=0) - values).pow(2).mean(dim=0).max())
        assert varianceBySubset[subset] <= 1, varianceBySubset[subset]
 
 

@@ -109,10 +109,10 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
         sentences[i] = "".join(sentences[i])
         sentences[i] = sentences[i].replace("▁", " ")
         if "<" in sentences[i]:
-          assert False, "does this happen?"
+        #  assert False, "does this happen?"
           sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
         if ">" in sentences[i]:
-          assert False, "does this happen?"
+         # assert False, "does this happen?"
           sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
         sentences[i] = sentences[i].strip()
       sentencePairResult = tuple(sentences) 
