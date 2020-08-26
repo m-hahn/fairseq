@@ -37,6 +37,12 @@ do
     TEST_INPUT_COLUMNS=( 1 2 5 6 )
     LABEL_COLUMN=4
     INPUT_COUNT=4
+  elif [ "$TASK" = "WSC" ]
+  then
+    INPUT_COLUMNS=( 1 2 )
+    TEST_INPUT_COLUMNS=( 1 2 )
+    LABEL_COLUMN=4
+    INPUT_COUNT=2
   elif [ "$TASK" = "COPA2" ]
   then
     INPUT_COLUMNS=( 1 2 )
