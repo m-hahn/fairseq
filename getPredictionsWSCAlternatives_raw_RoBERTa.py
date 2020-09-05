@@ -53,8 +53,8 @@ evaluatedSoFar = set()
 
 hasEvaluated = set()
 
-with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_finetuned_RoBERTa.txt", "w") as outFile:
- with open("/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_RoBERTa_finetuned.tsv", "r") as inFile: # _SECOND_VERSION_BACKUP
+with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_raw_RoBERTa.txt", "w") as outFile:
+ with open("/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_RoBERTa_raw.tsv", "r") as inFile: # _SECOND_VERSION_BACKUP
   while True:
    try:
       line = next(inFile).strip()
@@ -87,6 +87,9 @@ with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_finetuned_R
      assert " _ " not in " "+variant+" "
      #print(variant)
      if boundaries[0] > boundaries[2]:
+        if "#" in variant:
+          print("# symbol occurs", variant)
+          continue
         assert "#" not in variant, variant
         variant = variant.replace("_", "#")
         variant = variant.replace("[", "_")
