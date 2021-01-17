@@ -1,6 +1,8 @@
 from fairseq.models.roberta import RobertaModel
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 detokenizer = TreebankWordDetokenizer()
+
+
 import sys
 
 model = sys.argv[1]
@@ -32,11 +34,8 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predict
 
         alternativeOriginal = alternative.strip()
 
-
         alternative = alternative.replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(")
         alternative = detokenizer.detokenize(alternative.split(" "))
-#        print(alternative)
-#        quit()
 
         sentences = [alternative]
         if alternativeOriginal in evaluatedSoFar:

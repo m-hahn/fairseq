@@ -60,6 +60,7 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictio
         except ValueError:
            continue
         print(mask, tokenized, boundary)
+        assert False, "Not yet implemented"
         quit()
         sampled = sampled.strip().split(" ")
         assert len(sampled) == len(tokenized.split(" ")), (sampled, tokenized)
