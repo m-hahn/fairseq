@@ -6,7 +6,7 @@ detokenizer = TreebankWordDetokenizer()
 import sys
 
 model = sys.argv[1]
-assert model == "QQP"
+assert model == "RTE"
 
 roberta = RobertaModel.from_pretrained(
     f'checkpoints_{model}/',
@@ -22,8 +22,8 @@ ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictions_PMLM_1billion_raw.tsv', "w") as outFile:
- with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_PMLM_1billion_raw.tsv', 'r') as fin:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw.tsv', "w") as outFile:
+ with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_PMLM_1billion_raw.tsv', 'r') as fin:
     while True:
         line = next(fin).strip()
         try:
@@ -55,5 +55,5 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictio
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([alternativeOriginal, str(prediction[1]), str(prediction_label)]), file=outFile)
+        print("\t".join([alternativeOriginal, str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
 

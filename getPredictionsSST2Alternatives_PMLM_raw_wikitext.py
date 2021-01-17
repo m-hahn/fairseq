@@ -29,20 +29,24 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predict
         except ValueError:
            print("ValueError: ", line)
            continue
+
+        alternativeOriginal = alternative.strip()
+
+
         alternative = alternative.replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(")
         alternative = detokenizer.detokenize(alternative.split(" "))
 #        print(alternative)
 #        quit()
 
         sentences = [alternative]
-        if tuple(sentences) in evaluatedSoFar:
+        if alternativeOriginal in evaluatedSoFar:
            continue
-        evaluatedSoFar.add(tuple(sentences))
+        evaluatedSoFar.add(alternativeOriginal)
         if len(evaluatedSoFar) % 100 == 0:
-           print(sentences)
+           print(len(evaluatedSoFar), sentences)
         tokens = roberta.encode(sentences[0])
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([sentences[0], str(prediction[1]), prediction_label]), file=outFile)
+        print("\t".join([alternativeOriginal, str(prediction[1]), prediction_label]), file=outFile)
 
