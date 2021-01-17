@@ -34,8 +34,7 @@ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predicti
      line = line.strip().split("\t")
      if len(line) == 2:
        line.append("0.0")
-     sentence1, sentence2, cont, binary = line
-     sentence = sentence1+" "+sentence2
+     sentence, cont, binary = line
      cont = float(cont)
      assert cont <= 0.0
      alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
@@ -88,6 +87,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    print(original)
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
+   tokenizedBare = alternative[2].strip()
    tokenized = alternative[2].strip().split(" ")
 
 
@@ -108,6 +108,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    #print(predictionForOriginal)
    #quit()
 
+   hasConsideredSubsets = set()
 
    for variant in alternative[3:]:
       #print(variant)
@@ -117,38 +118,21 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
          subset, sentence= variant.strip().split("\t")
       except ValueError:
         continue
-      sentence = sentence.strip().split(" ")
-      sentence1 = sentence[:questionMarks[0]]
-      sentence2 = sentence[questionMarks[0]:]
+      subset = subset.strip()
+      sentence = sentence.split()
+   #   print("SENTENCE AS FOUND", sentence)
+      assert (subset,tokenizedBare) in RoBERTa_alternatives, (subset,tokenizedBare)
 
-      sentences = [sentence1, sentence2]
-      for i in range(2):
-        sentences[i] = "".join(sentences[i])
-        sentences[i] = sentences[i].replace("▁", " ")
-        if "<" in sentences[i]:
-        #  assert False, "does this happen?"
-          sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
-        if ">" in sentences[i]:
-         # assert False, "does this happen?"
-          sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
-        sentences[i] = sentences[i].strip()
-      sentencePairResult = tuple(sentences) 
-      sentence = sentencePairResult[0] + " " + sentencePairResult[1]
-      if sentence not in alternatives_predictions_binary:
-         print("DID NOT FIND", sentence)
-         assert False
-         continue
-      else:
-         pass
-#         print("FOUND", sentence)
-      assert sentence in alternatives_predictions_binary, sentence
-
-
-      variants_set.add(sentence)
-      if subset not in variants_dict:
-         variants_dict[subset] = []
-      variants_dict[subset].append(sentence)
-  # print((result))
+      if subset in hasConsideredSubsets:
+        continue
+      hasConsideredSubsets.add(subset)
+      for sentence in RoBERTa_alternatives[(subset,tokenizedBare)]:
+          sentence = sentence.strip()
+#          print(sentence)
+          variants_set.add(sentence)
+          if subset not in variants_dict:
+             variants_dict[subset] = []
+          variants_dict[subset].append(sentence)
    print(len(variants_set), "variants")
    valuesPerVariant = {}
    for variant in variants_set:
