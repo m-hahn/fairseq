@@ -1,3 +1,5 @@
+# Based on the script provided in https://github.com/pytorch/hub/blob/master/pytorch_fairseq_roberta.md
+
 from fairseq.models.roberta import RobertaModel
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 detokenizer = TreebankWordDetokenizer()
@@ -6,7 +8,7 @@ detokenizer = TreebankWordDetokenizer()
 import sys
 
 model = sys.argv[1]
-assert model == "QQP"
+assert model == "MRPC"
 
 roberta = RobertaModel.from_pretrained(
     f'checkpoints_{model}/',
@@ -22,9 +24,11 @@ ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictions_PMLM_1billion_raw.tsv', "w") as outFile:
- with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_PMLM_1billion_raw.tsv', 'r') as fin:
+lineNumbers = 0
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_predictions_PMLM_1billion_raw.tsv', "w") as outFile:
+ with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_PMLM_1billion_raw.tsv', 'r') as fin:
     while True:
+        lineNumbers += 1
         line = next(fin).strip()
         try:
            subset, original_tokenized, alternative = line.strip().split("\t")
@@ -36,6 +40,7 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictio
         assert len(alternatives) > 1, alternatives
         if len(alternatives) > 3 or (len(alternatives) > 2 and len(alternatives[2]) > 5):
             print("ODD Text after the end:", alternatives)
+#        print("FROM INPUT", alternatives)
         alternatives = alternatives[:2]
         for i in range(2):
            alternatives[i] = alternatives[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(")
@@ -44,6 +49,7 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/QQP/dev_alternatives_predictio
                                                                                                          
         
         sentences = alternatives
+        #print(sentences, len(evaluatedSoFar))
         if tuple(sentences) in evaluatedSoFar:
            continue
         evaluatedSoFar.add(tuple(sentences))
