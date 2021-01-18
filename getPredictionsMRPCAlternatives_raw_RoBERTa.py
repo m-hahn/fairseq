@@ -4,7 +4,7 @@ from fairseq.models.roberta import RobertaModel
 import sys
 
 model = sys.argv[1]
-assert model == "RTE"
+assert model == "MRPC"
 
 roberta = RobertaModel.from_pretrained(
     f'checkpoints_{model}/',
@@ -20,10 +20,10 @@ ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_raw_RoBERTa.tsv', "w") as outFile:
- for group in [""]:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_predictions_raw_RoBERTa.tsv', "w") as outFile:
+ for group in ["", "_d", "_e"]:
   try:
-   with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_RoBERTa_raw{group}.tsv', 'r') as fin:
+   with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_RoBERTa_raw{group}.tsv', 'r') as fin:
     while True:
         line = next(fin).strip()
         try:
@@ -31,8 +31,6 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictio
         except ValueError:
            print("ValueError: ", line)
            continue
-
-        alternativeOriginal = alternative.strip()
                                                                                                          
         alternative = alternative.replace("<s>", "").replace("</s>", "").strip().replace("@ @", "@")
         _sAt = [i for  i in range(len(alternative)) if alternative[i] == "@" and i > 0]
@@ -41,17 +39,17 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictio
               continue
         
         sentences = [alternative[:_sAt[0]].strip(), alternative[_sAt[0]+1:].strip()]
-        if alternativeOriginal in evaluatedSoFar:
+        if tuple(sentences) in evaluatedSoFar:
            continue
-        evaluatedSoFar.add(alternativeOriginal)
+        evaluatedSoFar.add(tuple(sentences))
         if len(evaluatedSoFar) % 100 == 0:
            print(len(evaluatedSoFar), sentences)
         tokens = roberta.encode(sentences[0], sentences[1])
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([alternativeOriginal, str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
+        print("\t".join([sentences[0], sentences[1], str(prediction[1]), str(prediction_label)]), file=outFile)
   except StopIteration:
      pass    
   except FileNotFoundError:
-    pass
+     pass
