@@ -36,21 +36,29 @@ with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_PMLM_1bi
         except ValueError:
            print("ValueError: ", line)
            continue
-        alternativesPerPar[(subset.strip(), original_tokenized.strip())].append(alternative)
+        alternative = alternative.split("[SEP]")
+        assert len(alternative) >= 1, alternative
+        assert len(alternative[0]) > 5, alternative
+        alternativesPerPar[(subset.strip(), original_tokenized.strip())].append(alternative[0])
   except StopIteration:
      pass
 
+import random
+evaluatedPairs = set()
 constructedMatchesDone = set()
 
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw_Separately.tsv', "w") as outFile:
- for group in ["_c"]:
-  try:
-   with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives{group}.tsv", "r") as inFile:
-    for line in inFile:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw_Separately_Matches.tsv', "w") as outFileMatches:
+ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw_Separately.tsv', "w") as outFile:
+  for group in ["_c"]:
+    with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives{group}.tsv", "r") as inFile:
+     for line in inFile:
         if line.startswith("####"):
-           next(inFile)
+           print("######", file=outFileMatches)
+           print(next(inFile).strip(), file=outFileMatches)
            boundary = int(next(inFile).strip())
            tokenized = next(inFile).strip()
+           print(boundary, file=outFileMatches)
+           print(tokenized, file=outFileMatches)
            print("TOK", tokenized)
            line = next(inFile)
         if len(line) < 3:
@@ -59,64 +67,50 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictio
            mask, sampled = line.strip().split("\t")
         except ValueError:
            continue
-        print(mask, tokenized, boundary)
-        assert False, "Not yet implemented"
-        quit()
-        sampled = sampled.strip().split(" ")
-        assert len(sampled) == len(tokenized.split(" ")), (sampled, tokenized)
         mask = mask.strip()
-        assert len(sampled) == len(mask), (sampled, mask)
-        masked = [sampled[i] if mask[i] == "0" else "[MASK]" for i in range(len(mask))]
-        masked_pair = [masked[:boundary], masked[boundary:]] # "▁[CLS]"
-        masks_pair = [mask[:boundary], mask[boundary:]]
-        for side, masked, mask_side in zip(range(2), masked_pair, masks_pair):
-          assert len(masked) == len(mask_side)
-          #print(masked)
-          masked = "".join(masked).replace("▁", " ").replace("[MASK]", " [MASK] ").replace("  ", " ").replace("</s>", "").strip()
-          if "[MASK]" not in masked:
-             continue
-          #print(("CANDIDATE", (tokenized, mask, masked)))
-          encodedWithMask = demo.encodeInputWithMask(masked, withCaching=True)
-   #       lengthOfFirstPartPMLM = encodedWithMask.index(102)
-    #      encodedWithMask = encodedWithMask[:lengthOfFirstPartPMLM] + encodedWithMask[lengthOfFirstPartPMLM+1:]
-          maskString = "".join(["0" if x != 103 else "1" for x in encodedWithMask])
-          key = (tokenized, mask_side+"_SIDE_"+str(side))
-          if sideCache[key] > 10:
-            continue
-          sideCache[key] += 1
-          blankCandidates.append({"tokenized" : tokenized, "XLNET_Mask" : mask_side+"_SIDE_"+str(side), "masked" : masked, "PMLM_Encoded" : encodedWithMask, "PMLM_Mask_Encoded" : maskString}) #, "lengthOfFirstPartPMLM" : lengthOfFirstPartPMLM})
-          #print(blankCandidates[-1])
-          if len(blankCandidates) % 1000 == 0:
-             #break
-             print("Recording blank candidates", len(blankCandidates))
-
-
-
-        alternativeOriginal = alternative.strip()
-
-        alternatives = alternative.replace("[CLS]", "").replace("[ CLS]", "").replace("[ CLS ]", "").split("[SEP]")
-        assert len(alternatives) > 1, alternatives
-        if len(alternatives) > 3 or (len(alternatives) > 2 and len(alternatives[2]) > 5):
-            print("ODD Text after the end:", alternatives)
-        alternatives = alternatives[:2]
-        for i in range(2):
-           alternatives[i] = alternatives[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(")
-           alternatives[i] = detokenizer.detokenize(alternatives[i].split(" "))
-
-                                                                                                         
-        
-        sentences = alternatives
-        if alternativeOriginal in evaluatedSoFar:
+        key = (tokenized.strip(), mask.strip())
+        if key in constructedMatchesDone:
            continue
-        evaluatedSoFar.add(alternativeOriginal)
-        if len(evaluatedSoFar) % 100 == 0:
-           print(len(evaluatedSoFar), sentences)
-        tokens = roberta.encode(sentences[0], sentences[1])
-        prediction = roberta.predict('sentence_classification_head', tokens)
-        prediction_label = label_fn(prediction.argmax().item())
-        prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([alternativeOriginal, str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
-  except StopIteration:
-     pass
-  except EOFError:
-     pass
+        constructedMatchesDone.add(key)
+    #    print(mask, tokenized, boundary)
+        tokenized_ = tokenized.strip().split(" ")
+        assert len(tokenized_) == len(mask)
+   #     print(tokenized_[:boundary], tokenized_[boundary:])
+  #      print(mask[:boundary]+"_SIDE_0")
+ #       print(mask[boundary:]+"_SIDE_1")
+#        print(list(alternativesPerPar)[:10])
+        if "1" in mask[:boundary]:
+            left = alternativesPerPar[(mask[:boundary]+"_SIDE_0", tokenized.strip())]
+        else:
+            leftPart = "".join(tokenized_[:boundary]).replace("▁", " ")
+            left = [leftPart for _ in range(10)]
+        if "1" in mask[boundary:]:
+            right = alternativesPerPar[(mask[boundary:]+"_SIDE_1", tokenized.strip())]
+        else:
+            rightPart = "".join(tokenized_[boundary:]).replace("▁", " ")
+            right = [rightPart for _ in range(10)]
+
+  #      print(mask[:boundary], mask[boundary:])
+   #     print(len(left), len(right))
+        numSamples = min(len(left), len(right))
+        for l, r in zip(random.sample(left, numSamples), random.sample(right, numSamples)):
+             pair = [l, r]
+#             print(pair)        
+             for i in range(2):
+                pair[i] = pair[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(")
+                pair[i] = detokenizer.detokenize(pair[i].split(" "))
+
+             print(mask, "\t", pair[0], "\t", pair[1], file=outFileMatches)
+             if tuple(pair) not in evaluatedPairs:
+                 evaluatedPairs.add(tuple(pair))
+             else:
+                 continue
+
+             if len(evaluatedPairs) % 100 == 0:
+                print(len(evaluatedPairs), pair)
+             tokens = roberta.encode(pair[0], pair[1])
+             prediction = roberta.predict('sentence_classification_head', tokens)
+             prediction_label = label_fn(prediction.argmax().item())
+             prediction = [float(x) for x in prediction.view(-1)]
+             print("\t".join([pair[0], pair[1], str(prediction[1]), {"not_entailment" : "0", "entailment" : "1"}[prediction_label]]), file=outFile)
+

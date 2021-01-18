@@ -19,7 +19,8 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    c = [-x for x in perSubsetSensitivities]
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
-   return -res.fun
+   return -res.fun, res.x
+
 from random import shuffle
 
 alternatives_predictions_binary = {}
@@ -27,16 +28,18 @@ alternatives_predictions_float = {}
 predictions_all = []
 
 
-assert False, "Not yet implemented, have to do some work b/c the file format differs"
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
+   itemsPredictions = dict([(x[0]+" "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw_Separately.tsv", "r", encoding='utf-8') as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
      if len(line) == 2:
        line.append("0.0")
-     sentence, cont, binary = line
+     sentence1, sentence2, cont, binary = line
+     sentence = sentence1.strip()+"@"+sentence2.strip()
      cont = float(cont)
      assert cont <= 0.0
      alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
@@ -61,13 +64,13 @@ from collections import defaultdict
 
 RoBERTa_alternatives = defaultdict(list)
 for group in [""]: # , "_d", "_e"
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_PMLM_1billion_raw_Separately.tsv", "r") as inFile:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_RoBERTa_raw{group}.tsv", "r") as inFile:
   for line in inFile:
      line = line.strip().split("\t")
      if len(line) < 3:
            print("ERROR", line)
            continue
-     RoBERTa_alternatives[(line[0].strip(), line[1].strip())].append(line[2])
+     RoBERTa_alternatives[(line[0].strip(), line[1].replace("</s>", "").strip())].append(line[2])
 
 
 
@@ -85,69 +88,52 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    variants_dict = {}
    
    alternative = alternative.split("\n")
-   original = alternative[0].strip()
+   original = alternative[0].replace("</s>", "").replace("@ ", "@").replace(" @", "@").strip()
+#   print(list(itemsPredictions)[:10])
    print(original)
-   questionMarks = [int(x) for x in alternative[1].split(" ")]
-
-   tokenizedBare = alternative[2].strip()
-   tokenized = alternative[2].strip().split(" ")
-
-
-   tokenized1 = tokenized[:questionMarks[0]]
-   tokenized2 = tokenized[questionMarks[0]:]
-
-   tokenizeds = [tokenized1, tokenized2]
-   for i in range(2):
-       tokenizeds[i] = ("".join(tokenizeds[i])).replace("▁", " ").replace("</s>", "").strip()
-   tokenizedPairResult = tuple(tokenizeds) 
-   original = tokenizedPairResult[0] + "@ " + tokenizedPairResult[1]
-
-   print(original)
+   print(original+"#")
 #   assert original in itemsPredictions
 #   entry = itemsPredictions[original]
-#   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[2].split(" ")]).exp()
-#   assert predictionForOriginal <= 1, entry
-   #print(predictionForOriginal)
-   #quit()
-
-   hasConsideredSubsets = set()
+#   predictionForOriginal = float(entry[2])
+#   booleanPredictionForOriginal = 1 if (entry[3] == "entailment") else 0
+#   assert predictionForOriginal <= 0
+#   assert booleanPredictionForOriginal in [0,1]
+   tokenized2 = alternative[2].replace("</s>", "").strip()
+   tokenized = alternative[2].split(" ")
+   valuesPerVariant = {}
 
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
+         print("SHORT?", variant)
          continue
       try:
          subset, sentence= variant.strip().split("\t")
       except ValueError:
-        continue
+         print("ERROR", variant)
+         continue
       subset = subset.strip()
-      sentence = sentence.split()
-   #   print("SENTENCE AS FOUND", sentence)
-      assert (subset,tokenizedBare) in RoBERTa_alternatives, (subset,tokenizedBare)
-
-      if subset in hasConsideredSubsets:
+      #print([(subset, tokenized2)])
+      #print(list(BERT_alternatives)[:5])
+      if ((subset, tokenized2) not in RoBERTa_alternatives):
+         print("WEIRD", (subset, tokenized2))
+         assert False
+      if (subset, tokenized2) in processed:
         continue
-      hasConsideredSubsets.add(subset)
-      for sentence in RoBERTa_alternatives[(subset,tokenizedBare)]:
-          sentence = sentence.strip()
-#          print(sentence)
-          variants_set.add(sentence)
-          if subset not in variants_dict:
-             variants_dict[subset] = []
-          variants_dict[subset].append(sentence)
-   print(len(variants_set), "variants")
-   valuesPerVariant = {}
-   for variant in variants_set:
-   #  print(variant)
-     try:
-       assert alternatives_predictions_binary[variant] in [0, 1], alternatives_predictions_binary[variant]
-       valuesPerVariant[variant] = alternatives_predictions_float[variant] 
-     except ValueError:
-        print("VALUE ERROR", variant)
-        valuesPerVariant[variant] = 0
-     except AttributeError:
-        print("VALUE ERROR", variant)
-        valuesPerVariant[variant] = 0
+      for alternative in RoBERTa_alternatives[(subset, tokenized2)]:
+         #print(alternative)
+         alternative = alternative.replace("<s>", "").replace("</s>", "").strip().replace("@ ", "@").replace(" @", "@")
+         if alternative not in alternatives_predictions_float:
+#            print("DID NOT FIND", alternative)
+            ats = [x for x in alternative if x == "@"]
+            #assert len(ats) > 1, "#"+alternative+"#"
+#            assert False, "#"+alternative+"#"
+            continue
+         valuesPerVariant[alternative] = alternatives_predictions_float[alternative]
+         if subset not in variants_dict:
+            variants_dict[subset] = []
+         variants_dict[subset].append(alternative)
+  # print((result))
 
    varianceBySubset = {}
    for subset in variants_dict:
@@ -171,8 +157,9 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    b = [1 for _ in range(N)]
    x_bounds = [(0,1) for _ in range(len(subsetsEnumeration))]
    perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
-
-   sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+#   print(perSubsetSensitivities)
+ #  quit()
+   sensitivity, _ = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
    try:
       sensitivityHistogram[int(2*sensitivity)] += 1
@@ -185,9 +172,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
 print("Examples", len(sensitivities))
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
-variance = sum([x**2 for x in sensitivities]) / len(sensitivities) - (sum(sensitivities)/len(sensitivities))**2
-import math
-print("Standard error", variance/math.sqrt(len(sensitivities)))
+
 
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())

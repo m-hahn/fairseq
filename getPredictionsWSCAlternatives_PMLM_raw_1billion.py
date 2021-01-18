@@ -63,6 +63,16 @@ with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_PMLM_1billi
       continue
    if len(alternative) < 5:
       continue
+
+
+   # this is for cases where stuff appears after [SEP]. Does not seem to happen in /u/scr/mhahn/PRETRAINED/WSC/val_alternatives_PMLM_1billion_raw.tsv
+   # The script was run without the next three lines, I inserted them afterwards without testing.
+   alternative = alternative.split("[SEP]")
+   assert len(alternative) >= 1, alternative
+   assert len(alternative[0]) > 5, alternative
+
+
+
    variants_set = set()
    variants_dict = {}
    original_tokenized_list=original_tokenized.strip().split(" ")

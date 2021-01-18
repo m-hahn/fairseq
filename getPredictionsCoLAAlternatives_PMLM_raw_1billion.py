@@ -8,7 +8,7 @@ detokenizer = TreebankWordDetokenizer()
 import sys
 
 model = sys.argv[1]
-assert model == "SST-2"
+assert model == "CoLA"
 
 roberta = RobertaModel.from_pretrained(
     f'checkpoints_{model}/',
@@ -24,8 +24,8 @@ ncorrect, nsamples = 0, 0
 roberta.cuda()
 roberta.eval()
 evaluatedSoFar = set()
-with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_PMLM_wikitext_raw.tsv', "w") as outFile:
-   with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_Wikitext_raw.tsv', 'r') as fin:
+with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/CoLA/dev_alternatives_predictions_PMLM_1billion_raw.tsv', "w") as outFile:
+ with open(f'/u/scr/mhahn/PRETRAINED/GLUE/glue_data/CoLA/dev_alternatives_PMLM_1billion_raw.tsv', 'r') as fin:
     while True:
         line = next(fin).strip()
         try:
@@ -34,12 +34,12 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predict
            print("ValueError: ", line)
            continue
 
-        # This is for cutting of stuff after the SEP. This happens only < 20 times in /u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_Wikitext_raw.tsv
-        # I inserted these three lines after running, no guarantee that they work.
+        # This is for cutting of stuff after the SEP.
         alternative = alternative.split("[SEP]")
         assert len(alternative) >= 1, alternative
         assert len(alternative[0]) > 5, alternative
-
+        assert "[CLS]" in alternative[0], alternative
+        alternative = alternative[0]
 
 
         alternativeOriginal = alternative.strip()
@@ -57,5 +57,5 @@ with open('/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predict
         prediction = roberta.predict('sentence_classification_head', tokens)
         prediction_label = label_fn(prediction.argmax().item())
         prediction = [float(x) for x in prediction.view(-1)]
-        print("\t".join([alternativeOriginal, str(prediction[1]), prediction_label]), file=outFile)
+        print("\t".join([alternativeOriginal, str(prediction[1]), str(prediction_label)]), file=outFile)
 
