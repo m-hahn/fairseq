@@ -183,7 +183,9 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
 print("Examples", len(sensitivities))
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
 print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sensitivities)/2)])
-
+variance = sum([x**2 for x in sensitivities]) / len(sensitivities) - (sum(sensitivities)/len(sensitivities))**2
+import math
+print("Standard error", variance/math.sqrt(len(sensitivities)))
 
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())

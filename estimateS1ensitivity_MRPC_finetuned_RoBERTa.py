@@ -105,7 +105,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
-         print("SHORT?")
+         print("SHORT?", variant)
          continue
       try:
          subset, sentence= variant.strip().split("\t")
@@ -117,7 +117,7 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
       #print(list(BERT_alternatives)[:5])
       if ((subset, tokenized2) not in RoBERTa_alternatives):
          print("WEIRD", (subset, tokenized2))
-         quit()
+         assert False
       if (subset, tokenized2) in processed:
         continue
       for alternative in RoBERTa_alternatives[(subset, tokenized2)]:

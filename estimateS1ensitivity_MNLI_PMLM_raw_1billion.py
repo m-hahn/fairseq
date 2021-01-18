@@ -27,19 +27,14 @@ alternatives_predictions_float = {}
 predictions_all = []
 
 
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_datapoints_predictions_fairseq.tsv", "r") as inFile:
-   itemsPredictions = dict([(x[0]+"@ "+x[1], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_c_predictions_fairseq.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_predictions_PMLM_1billion_raw.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     #print(line)
-     #quit()
-     sentence1, sentence2, binary, cont = line
-     sentence = sentence1+" "+sentence2
+#     if len(line) == 2:
+ #      line.append("0.0")
+     sentence, binary, cont = line
      cont = [float(x) for x in cont.split(" ")]
      alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
      alternatives_predictions_float[sentence.strip()] = cont
@@ -53,14 +48,32 @@ print(predictions_all.mean(dim=0))
 print(variance_predictions)
 #quit()
 
-print(list(alternatives_predictions_binary.items())[:10])
 alternatives = []
 for group in "cdefghi":
  with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_{group}.tsv", "r", encoding='utf-8') as inFile:
   alternatives += inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
+
+
+from collections import defaultdict
+
+RoBERTa_alternatives = defaultdict(list)
+for group in [""]: # , "_d", "_e"
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MNLI/dev_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
+  for line in inFile:
+     line = line.strip().split("\t")
+     if len(line) < 3:
+           print("ERROR", line)
+           continue
+     RoBERTa_alternatives[(line[0].strip(), line[1].strip())].append(line[2])
+
+
+
 sensitivities = []
+
+
+processed = set()
 
 with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
  print("Original", "\t", "BinaryS1ensitivity", file=outFile)
@@ -72,10 +85,10 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
-   #print(original+"#")
-   #print(list(itemsPredictions.items())[:10])
+   print(original)
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
+   tokenizedBare = alternative[2].strip()
    tokenized = alternative[2].strip().split(" ")
 
 
@@ -88,43 +101,39 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    tokenizedPairResult = tuple(tokenizeds) 
    original = tokenizedPairResult[0] + "@ " + tokenizedPairResult[1]
 
-#   print(original)
- #  assert original in itemsPredictions
-  # entry = itemsPredictions[original]
-   #predictionForOriginal = torch.FloatTensor([float(x) for x in entry[3].split(" ")]).exp()
-   #assert float(predictionForOriginal.max()) <= 1, entry
+   print(original)
+#   assert original in itemsPredictions
+#   entry = itemsPredictions[original]
+#   predictionForOriginal = torch.FloatTensor([float(x) for x in entry[2].split(" ")]).exp()
+#   assert predictionForOriginal <= 1, entry
    #print(predictionForOriginal)
    #quit()
 
+   hasConsideredSubsets = set()
 
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
          continue
+      try:
+         subset, sentence= variant.strip().split("\t")
+      except ValueError:
+        continue
+      subset = subset.strip()
+      sentence = sentence.split()
+   #   print("SENTENCE AS FOUND", sentence)
+      assert (subset,tokenizedBare) in RoBERTa_alternatives, (subset,tokenizedBare)
 
-      subset, sentence= variant.strip().split("\t")
-
-      sentence = sentence.strip().split(" ")
-      sentence1 = sentence[:questionMarks[0]]
-      sentence2 = sentence[questionMarks[0]:]
-
-      sentences = [sentence1, sentence2]
-      for i in range(2):
-          sentences[i] = ("".join(sentences[i])).replace("▁", " ").replace("</s>", "").strip()
-      sentencePairResult = tuple(sentences) 
-      sentence = sentencePairResult[0] + " " + sentencePairResult[1]
-      if sentence not in alternatives_predictions_binary:
-         print("DID NOT FIND", sentence)
-      #   assert False
-         continue
-      assert sentence in alternatives_predictions_binary, sentence
-
-
-      variants_set.add(sentence)
-      if subset not in variants_dict:
-         variants_dict[subset] = []
-      variants_dict[subset].append(sentence)
-  # print((result))
+      if subset in hasConsideredSubsets:
+        continue
+      hasConsideredSubsets.add(subset)
+      for sentence in RoBERTa_alternatives[(subset,tokenizedBare)]:
+          sentence = sentence.strip()
+#          print(sentence)
+          variants_set.add(sentence)
+          if subset not in variants_dict:
+             variants_dict[subset] = []
+          variants_dict[subset].append(sentence)
    print(len(variants_set), "variants")
    valuesPerVariant = {}
    for variant in variants_set:
@@ -164,7 +173,10 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
 
    sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   sensitivityHistogram[int(2*sensitivity)] += 1
+   try:
+      sensitivityHistogram[int(2*sensitivity)] += 1
+   except IndexError:
+      print("Index Error")
    sensitivities.append(sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
