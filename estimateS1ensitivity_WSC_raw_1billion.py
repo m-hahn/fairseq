@@ -3,6 +3,9 @@ import sys
 import torch
 task = sys.argv[1]
 
+predictionFound = 0
+predictionNotFound = 0
+
 assert task == "WSC"
 
 def mean(values):
@@ -39,8 +42,6 @@ with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_PMLM_1billi
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     if len(line) == 2:
-       line.append("0.0")
      sentence, prediction_discrete = line
      alternatives_predictions_float[sentence.strip()] = torch.FloatTensor([float(prediction_discrete)])
      #averageLabel[0]+=1
@@ -85,7 +86,6 @@ with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_PMLM_1billion_raw.tsv",
 
 sensitivities = []
 
-
 processed = set()
 
 with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
@@ -98,6 +98,13 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
+   boundaries = [int(x) for x in alternative[1].strip().split(" ")]
+   tokenized = alternative[2].strip()
+   tokenized2 = tokenized+"@REFERENTS@"+"@".join([str(x) for x in sorted(boundaries)])
+
+   valuesPerVariant = {}
+
+
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
@@ -114,14 +121,18 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
          print("WEIRD", (subset, tokenized2))
          print("FROM VARIANT", [(subset, tokenized2)])
          print("ALTERNATIVES", list(RoBERTa_alternatives)[:1])
-         #assert False
+         assert False
       for alternative in RoBERTa_alternatives[(subset, tokenized2)]:
          #print(alternative)
          alternative = alternative.replace("<s>", "").replace("</s>", "").strip()
          if alternative not in alternatives_predictions_float:
             print("DID NOT FIND", alternative)
-            #assert False
+            predictionNotFound += 1
             continue
+         else:
+            predictionFound += 1
+
+            #assert False
          valuesPerVariant[alternative] = alternatives_predictions_float[alternative]
          if subset not in variants_dict:
             variants_dict[subset] = []
@@ -161,8 +172,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    except IndexError:
       print("Index Error")
    sensitivities.append(sensitivity)
-   print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
-   print(original, "\t", sensitivity, file=outFile)
+   print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities), "Lost data", predictionNotFound/(predictionNotFound+predictionFound))
+   print(tokenized2, "\t", sensitivity, file=outFile)
 
 print("Examples", len(sensitivities))
 print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))

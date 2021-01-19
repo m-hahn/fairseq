@@ -32,7 +32,7 @@ averageLabel = [0,0,0]
 with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_datapoints_predictions_finetuned.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_RoBERTa.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_PMLM_wikitext_raw.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
