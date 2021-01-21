@@ -3,7 +3,11 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "MRPC"
+from nltk.tokenize.treebank import TreebankWordDetokenizer
+detokenizer = TreebankWordDetokenizer()
+
+
+assert task == "RTE"
 
 def mean(values):
    return sum(values)/len(values)
@@ -19,7 +23,8 @@ def getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities):
    c = [-x for x in perSubsetSensitivities]
    res = linprog(c, A_ub=A, b_ub=b, bounds=x_bounds)
    # find the highly sensitive partition
-   return -res.fun
+   return -res.fun, res.x
+
 from random import shuffle
 
 alternatives_predictions_binary = {}
@@ -28,7 +33,7 @@ predictions_all = []
 
 
 for group in ["", "_Independent"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_predictions_PMLM_1billion_raw{group}.tsv", "r", encoding='utf-8') as inFile:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_predictions_PMLM_1billion_raw{group}.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
@@ -54,7 +59,7 @@ alternatives = []
 #quit()
 
 for group in ["", "_OnlySubsetsNoAlternatives"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_c{group}.tsv", "r", encoding='utf-8') as inFile:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_c{group}.tsv", "r", encoding='utf-8') as inFile:
   alternatives += inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -65,7 +70,7 @@ from collections import defaultdict
 RoBERTa_alternatives_set = set()
 RoBERTa_alternatives = defaultdict(list)
 for group in ["", "_Independent"]: # , "_d", "_e"
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_PMLM_1billion_raw{group}.tsv", "r") as inFile:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives_PMLM_1billion_raw{group}.tsv", "r") as inFile:
   for line in inFile:
      line = line.strip().split("\t")
      if len(line) < 3:
@@ -80,9 +85,10 @@ sensitivities = []
 
 processed = set()
 
-with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
- print("Original", "\t", "BinaryS1ensitivity", file=outFile)
- for alternative in alternatives:
+with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_Witnesses:
+ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
+  print("Original", "\t", "BinaryS1ensitivity", file=outFile)
+  for alternative in alternatives:
    if len(alternative) < 5:
       continue
    variants_set = set()
@@ -90,7 +96,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
-   print(original)
+   print("#######", file=outFile_Witnesses)
+   print(original, file=outFile_Witnesses)
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
    tokenizedBare = alternative[2].strip()
@@ -130,9 +137,8 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
       subset = subset.strip()
       sentence = sentence.split()
    #   print("SENTENCE AS FOUND", sentence)
-      if (subset,tokenizedBare) not in RoBERTa_alternatives:
-          print("ERROR. If this happens more than a couple of times, then this is a problem", (subset,tokenizedBare))
-          continue
+      assert (subset,tokenizedBare) in RoBERTa_alternatives, (subset,tokenizedBare)
+
       if subset in hasConsideredSubsets:
         continue
       hasConsideredSubsets.add(subset)
@@ -179,15 +185,68 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    
    b = [1 for _ in range(N)]
    x_bounds = [(0,1) for _ in range(len(subsetsEnumeration))]
-   perSubsetSensitivities = [varianceBySubset[x] for x in subsetsEnumeration]
+   perSubsetSensitivities = [varianceBySubset[x] - 1e-5*len([y for y in x if y == "1"]) for x in subsetsEnumeration]
 
-   sensitivity = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   sensitivity, assignment = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity, file=outFile_Witnesses)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
-   try:
-      sensitivityHistogram[int(2*sensitivity)] += 1
-   except IndexError:
-      print("Index Error")
+   print(tokenized)
+#   if sensitivity < 2 and False:
+ #     continue
+   subsetsBySensitivity = sorted(range(len(perSubsetSensitivities)), key=lambda x:perSubsetSensitivities[x], reverse=True)
+   print(subsetsBySensitivity)
+   capturedSensitivity = 0
+   for i in subsetsBySensitivity:
+      assigned = assignment[i].item()
+      if assigned > 1e-2 and perSubsetSensitivities[i] > 0.3:
+         print("&&&&&&&&&&& SUBSET SENSITIVITY", "\t", assigned, "\t", perSubsetSensitivities[i], file=outFile_Witnesses)
+#         print(len(subsetsEnumeration[j]), len(tokenized))
+         capturedSensitivity += perSubsetSensitivities[i]
+
+         tokenized2 = [tokenized[j] if subsetsEnumeration[i][j] == "0" else "####" for j in range(len(tokenized))]
+         
+         tokenized2_1 = ("".join(tokenized2[:questionMarks[0]])).replace("▁", " ")
+         tokenized2_2 = ("".join(tokenized2[questionMarks[0]:])).replace("▁", " ")
+         print(tokenized2_1, tokenized2_2)
+
+
+
+         sentences = [tokenized2_1, tokenized2_2]
+
+         result = [[], []]
+         for s in range(2):
+           sentence = sentences[s]
+           while "####" in sentence:
+              q = sentence.index("####")
+              left, sentence = sentence[:q].strip(), sentence[q+4:].strip()
+              if q == 0:
+                 if len(result[s]) == 0:
+                     result[s].append("####")
+                 else:
+                     result[s][-1] += "####"
+              else:
+                result[s].append(left)
+                result[s].append("####")
+           if len(sentence) > 0:
+              result[s].append(sentence)
+#         print({"premise" : result[0], "hypothesis" : result[1], "subset" : subsetsEnumeration[i], "original" : original}, ",", file=outFile)
+         print("&&&&&&&&&@ SUBSETS", "\t", str("\t".join(sentences)), file=outFile_Witnesses)
+         print("&&&&&&&&&% SUBSETS", "\t", str(result), file=outFile_Witnesses)
+
+
+  #       print(subsetsEnumeration[i], assigned, perSubsetSensitivities[i])
+         sentsWithValues = sorted([ (x, valuesPerVariant[x]) for x in variants_dict[subsetsEnumeration[i]]], key=lambda x:x[1])
+         for sentence, prediction in sentsWithValues:
+            sentence = sentence.split("[SEP]")[:2]
+            for i in range(2):
+              sentence[i] = sentence[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(").replace("U . S . ", "U.S. ")
+              sentence[i] = detokenizer.detokenize(sentence[i].split(" "))
+               
+            print("\t".join(sentence), "\t", prediction, file=outFile_Witnesses)
+        
+
    sensitivities.append(sensitivity)
+   print("Captured", capturedSensitivity, "out of", sensitivity)
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
 

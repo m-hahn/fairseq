@@ -3,7 +3,7 @@ import sys
 import torch
 task = sys.argv[1]
 
-assert task == "MRPC"
+assert task == "RTE"
 
 def mean(values):
    return sum(values)/len(values)
@@ -27,22 +27,22 @@ alternatives_predictions_float = {}
 predictions_all = []
 
 
-for group in ["", "_Independent"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_predictions_PMLM_1billion_raw{group}.tsv", "r", encoding='utf-8') as inFile:
+for group in ["_c", "_d"]:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives{group}_predictions_fairseq.tsv", "r", encoding='utf-8') as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
      if len(line) == 2:
        line.append("0.0")
-     sentence, cont, binary = line
+     sentence1, sentence2, cont, binary = line
+     sentence = sentence1+" "+sentence2
      cont = float(cont)
      assert cont <= 0.0
      alternatives_predictions_binary[sentence.strip()] = int(binary.strip())
      alternatives_predictions_float[sentence.strip()] = cont
      predictions_all.append(cont)
   print(len(alternatives_predictions_binary))
-#quit()
 
 predictions_all = torch.FloatTensor(predictions_all)
 variance_predictions = predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2)
@@ -53,32 +53,12 @@ print(variance_predictions)
 alternatives = []
 #quit()
 
-for group in ["", "_OnlySubsetsNoAlternatives"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_c{group}.tsv", "r", encoding='utf-8') as inFile:
+for group in ["_c", "_d"]:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/RTE/dev_alternatives{group}.tsv", "r", encoding='utf-8') as inFile:
   alternatives += inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
-
-
-from collections import defaultdict
-
-RoBERTa_alternatives_set = set()
-RoBERTa_alternatives = defaultdict(list)
-for group in ["", "_Independent"]: # , "_d", "_e"
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/MRPC/dev_alternatives_PMLM_1billion_raw{group}.tsv", "r") as inFile:
-  for line in inFile:
-     line = line.strip().split("\t")
-     if len(line) < 3:
-           print("ERROR", line)
-           continue
-     RoBERTa_alternatives[(line[0].strip(), line[1].strip())].append(line[2])
-     RoBERTa_alternatives_set.add(line[1].strip())
-
-
 sensitivities = []
-
-
-processed = set()
 
 with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "w") as outFile:
  print("Original", "\t", "BinaryS1ensitivity", file=outFile)
@@ -93,7 +73,6 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    print(original)
    questionMarks = [int(x) for x in alternative[1].split(" ")]
 
-   tokenizedBare = alternative[2].strip()
    tokenized = alternative[2].strip().split(" ")
 
 
@@ -114,36 +93,46 @@ with open(f"/u/scr/mhahn/sensitivity/sensitivities/s1ensitivities_{__file__}", "
    #print(predictionForOriginal)
    #quit()
 
-   hasConsideredSubsets = set()
 
-   if tokenizedBare not in RoBERTa_alternatives_set:
-      print("No predictions for this datapoint!", tokenizedBare)
-      continue
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
          continue
-      try:
-         subset, sentence= variant.strip().split("\t")
-      except ValueError:
-        continue
-      subset = subset.strip()
-      sentence = sentence.split()
-   #   print("SENTENCE AS FOUND", sentence)
-      if (subset,tokenizedBare) not in RoBERTa_alternatives:
-          print("ERROR. If this happens more than a couple of times, then this is a problem", (subset,tokenizedBare))
-          continue
-      if subset in hasConsideredSubsets:
-        continue
-      hasConsideredSubsets.add(subset)
-      for sentence in RoBERTa_alternatives[(subset,tokenizedBare)]:
-          sentence = sentence.strip()
-#          print(sentence)
-          variants_set.add(sentence)
-          assert sentence in alternatives_predictions_binary, sentence
-          if subset not in variants_dict:
-             variants_dict[subset] = []
-          variants_dict[subset].append(sentence)
+
+      subset, sentence= variant.strip().split("\t")
+
+      sentence = sentence.strip().split(" ")
+      sentence1 = sentence[:questionMarks[0]]
+      sentence2 = sentence[questionMarks[0]:]
+
+      sentences = [sentence1, sentence2]
+      for i in range(2):
+        sentences[i] = "".join(sentences[i])
+        sentences[i] = sentences[i].replace("▁", " ")
+        if "<" in sentences[i]:
+        #  assert False, "does this happen?"
+          sentences[i] = sentences[i][sentences[i].rfind("<")+1:]
+        if ">" in sentences[i]:
+         # assert False, "does this happen?"
+          sentences[i] = sentences[i][sentences[i].rfind(">")+1:]
+        sentences[i] = sentences[i].strip()
+      sentencePairResult = tuple(sentences) 
+      sentence = sentencePairResult[0] + " " + sentencePairResult[1]
+      if sentence not in alternatives_predictions_binary:
+         print("DID NOT FIND", sentence)
+         assert False
+         continue
+      else:
+         pass
+#         print("FOUND", sentence)
+      assert sentence in alternatives_predictions_binary, sentence
+
+
+      variants_set.add(sentence)
+      if subset not in variants_dict:
+         variants_dict[subset] = []
+      variants_dict[subset].append(sentence)
+  # print((result))
    print(len(variants_set), "variants")
    valuesPerVariant = {}
    for variant in variants_set:
