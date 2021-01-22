@@ -70,7 +70,7 @@ for group in [""]: #["c", "d", "e"]:
 from collections import defaultdict
 
 RoBERTa_alternatives = defaultdict(list)
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_Wikitext_raw.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
   for line in inFile:
      line = line.strip().split("\t")
      if len(line) < 3:
@@ -96,6 +96,8 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    
    alternative = alternative.split("\n")
    original = alternative[0].strip()
+   print("#######", file=outFile_Witnesses)
+   print(original, file=outFile_Witnesses)
  #  print(original+"#")
    assert original in itemsPredictions
    entry = itemsPredictions[original]
@@ -126,10 +128,10 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
         continue
       for alternative in RoBERTa_alternatives[(subset, tokenized2)]:
          #print(alternative)
-         alternative = alternative.replace("<s>", "").replace("</s>", "").strip()
+         alternative = alternative.replace("<s>", "").replace("</s>", "").split("[SEP]")[0].strip()
          if alternative not in alternatives_predictions_float:
             print("DID NOT FIND", alternative)
-            assert False
+            #assert False
             continue
          valuesPerVariant[alternative] = alternatives_predictions_float[alternative]
          if subset not in variants_dict:
@@ -208,10 +210,7 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
 
 
   #       print(subsetsEnumeration[i], assigned, perSubsetSensitivities[i])
-         variantsSample = list(variants_dict[subsetsEnumeration[i]].items())
-         variantsSample = rng.choices(sorted(variantsSample), 10)
-         sentsWithValues = sorted([ x for x in variantsSample], key=lambda x:x[1])
-         assert len(sentsWithValues) <= 10
+         sentsWithValues = sorted([ (x, valuesPerVariant[x]) for x in variants_dict[subsetsEnumeration[i]]], key=lambda x:x[1])
          for sentence, prediction in sentsWithValues:
             sentence = sentence.split("[SEP]")[:1]
             for i in range(1):
