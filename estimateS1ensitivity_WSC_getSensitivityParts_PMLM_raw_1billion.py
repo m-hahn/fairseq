@@ -1,5 +1,3 @@
-import random
-rng = random.Random(5)
 import math
 import sys
 import torch
@@ -9,13 +7,18 @@ from nltk.tokenize.treebank import TreebankWordDetokenizer
 detokenizer = TreebankWordDetokenizer()
 
 
-assert task == "SST-2"
+predictionFound = 0
+predictionNotFound = 0
+
+assert task == "WSC"
 
 def mean(values):
    return sum(values)/len(values)
 
 sensitivityHistogram = [0 for _ in range(40)]
 
+def variance(values):
+   return mean([x**2 for x in values]) - mean(values)**2
 
 from scipy.optimize import linprog
 
@@ -33,44 +36,46 @@ alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
 predictions_all = []
 
-averageLabel = [0,0,0]
 
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_datapoints_predictions_finetuned.tsv", "r") as inFile:
-   itemsPredictions = dict([(x[0], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
-
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_PMLM_1billion_raw.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_predictions_PMLM_1billion_raw.txt", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
      line = line.strip().split("\t")
-     if len(line) == 2:
-       line.append("0.0")
-     sentence, prediction_log, prediction_discrete = line
-     alternatives_predictions_float[sentence.strip()] = torch.FloatTensor([float(prediction_log)])
-     averageLabel[0]+=1
-     averageLabel[1]+=math.exp(float(prediction_log))
-     averageLabel[2]+=(math.exp(float(prediction_log)))**2
+     sentence, prediction_discrete = line
+     alternatives_predictions_float[sentence.strip()] = torch.FloatTensor([float(prediction_discrete)])
+     #averageLabel[0]+=1
+     #averageLabel[1]+=math.exp(float(prediction_log))
+     #averageLabel[2]+=(math.exp(float(prediction_log)))**2
   print(len(alternatives_predictions_float))
 
-print("Average Label", 2*averageLabel[1]/averageLabel[0]-1)
-print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
+#print("Average Label", 2*averageLabel[1]/averageLabel[0]-1)
+#print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/averageLabel[0])**2))
+
+
+
+
+predictions_all = torch.FloatTensor(predictions_all)
+variance_predictions = predictions_all.pow(2).mean(dim=0) - predictions_all.mean(dim=0).pow(2)
+print(predictions_all)
+print(predictions_all.mean(dim=0))
+print(variance_predictions)
 #quit()
 
-print(list(alternatives_predictions_float.items())[:10])
 
-alternatives = []
-for group in [""]: #["c", "d", "e"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_c_sentBreak_new_finetuned_large.tsv", "r") as inFile:
-  alternatives += inFile.read().strip().split("#####\n")
+
+
+with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_c.txt", "r", encoding='utf-8') as inFile:
+  alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
 
 
 from collections import defaultdict
 
+RoBERTa_alternatives_set = set()
 RoBERTa_alternatives = defaultdict(list)
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/WSC/val_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
   for line in inFile:
      line = line.strip().split("\t")
      if len(line) < 3:
@@ -98,16 +103,14 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    original = alternative[0].strip()
    print("#######", file=outFile_Witnesses)
    print(original, file=outFile_Witnesses)
- #  print(original+"#")
-   assert original in itemsPredictions
-   tokenizedBaree = alternative[1]
-   tokenized = alternative[1].split(" ")
-   valuesPerVariant = {}
-   hasConsideredSubsets = set()
+   boundaries = [int(x) for x in alternative[1].strip().split(" ")]
+   tokenized = alternative[2].strip()
+   tokenized2 = tokenized+"@REFERENTS@"+"@".join([str(x) for x in sorted(boundaries)])
 
-   if tokenizedBare not in RoBERTa_alternatives_set:
-      print("No predictions for this datapoint!", tokenizedBare)
-      continue
+   tokenized = tokenized.strip().split(" ")
+   valuesPerVariant = {}
+
+
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
@@ -115,36 +118,38 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
       try:
          subset, sentence= variant.strip().split("\t")
       except ValueError:
-        continue
+         continue
       subset = subset.strip()
-      if (subset,tokenizedBare) not in RoBERTa_alternatives:
-          print("ERROR. If this happens more than a couple of times, then this is a problem", (subset,tokenizedBare))
-          continue
-      if ((subset, tokenizedBare) not in RoBERTa_alternatives):
-         print("WEIRD", (subset, tokenizedBare))
-      if (subset, tokenizedBare) in processed:
+      if (subset, tokenized2) in processed:
         continue
-      if subset in hasConsideredSubsets:
-        continue
-      for sentence in RoBERTa_alternatives[(subset, tokenizedBare)]:
+      processed.add((subset, tokenized2))
+      if ((subset, tokenized2) not in RoBERTa_alternatives):
+         print("WEIRD", (subset, tokenized2))
+         print("FROM VARIANT", [(subset, tokenized2)])
+         print("ALTERNATIVES", list(RoBERTa_alternatives)[:1])
+         assert False
+      for alternative in RoBERTa_alternatives[(subset, tokenized2)]:
          #print(alternative)
-         sentence = sentence.replace("<s>", "").replace("</s>", "").split("[SEP]")[0].strip()
-         assert sentence in alternatices_predictions_float, sentence
-#         if sentence not in alternatives_predictions_float:
- #           print("DID NOT FIND", sentence)
-  #          #assert False
-   #         continue
-         valuesPerVariant[sentence] = alternatives_predictions_float[sentence]
+         alternative = alternative.replace("<s>", "").replace("</s>", "").strip()
+         if alternative not in alternatives_predictions_float:
+            print("DID NOT FIND", alternative)
+            predictionNotFound += 1
+            continue
+         else:
+            predictionFound += 1
+
+            #assert False
+         valuesPerVariant[alternative] = alternatives_predictions_float[alternative]
          if subset not in variants_dict:
             variants_dict[subset] = []
-         variants_dict[subset].append(sentence)
+         variants_dict[subset].append(alternative)
   # print((result))
 
    varianceBySubset = {}
    for subset in variants_dict:
-       values = torch.stack([ valuesPerVariant[x] for x in variants_dict[subset]], dim=0).exp()
-       varianceBySubset[subset] = 4*float((values.mean(dim=0) - values).pow(2).mean(dim=0).max())
-       assert varianceBySubset[subset] <= 1
+       values = torch.stack([ valuesPerVariant[x] for x in variants_dict[subset]], dim=0)
+       varianceBySubset[subset] = float((values.mean(dim=0) - values).pow(2).mean(dim=0).max())
+       assert varianceBySubset[subset] <= 1, values
 #   print(varianceBySubset)
 
 
@@ -165,6 +170,8 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    perSubsetSensitivities = [varianceBySubset[x] - 1e-5*len([y for y in x if y == "1"]) for x in subsetsEnumeration]
 
    sensitivity, assignment = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   if str(sensitivity) == "nan":
+      continue
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity, file=outFile_Witnesses)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
    print(tokenized)
@@ -175,11 +182,12 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    capturedSensitivity = 0
    for i in subsetsBySensitivity:
       assigned = assignment[i].item()
-      if assigned > 1e-2 and perSubsetSensitivities[i] > 0.3:
-         print("&&&&&&&&&&& SUBSET SENSITIVITY", "\t", assigned, "\t", float(perSubsetSensitivities[i]), file=outFile_Witnesses)
+      if assigned > 1e-2 and perSubsetSensitivities[i] > 0.5:
+         print("&&&&&&&&&&& SUBSET SENSITIVITY", "\t", assigned, "\t", perSubsetSensitivities[i], file=outFile_Witnesses)
 #         print(len(subsetsEnumeration[j]), len(tokenized))
          capturedSensitivity += perSubsetSensitivities[i]
-
+  
+         print(tokenized)
          tokenized2 = [tokenized[j] if subsetsEnumeration[i][j] == "0" else "####" for j in range(len(tokenized))]
          
          tokenized2_1 = ("".join(tokenized2)).replace("▁", " ")
@@ -213,8 +221,8 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
   #       print(subsetsEnumeration[i], assigned, perSubsetSensitivities[i])
          sentsWithValues = sorted([ (x, valuesPerVariant[x]) for x in variants_dict[subsetsEnumeration[i]]], key=lambda x:x[1])
          for sentence, prediction in sentsWithValues:
-            sentence = sentence.split("[SEP]")[:1]
-            for i in range(1):
+            sentence = sentence.split("[SEP]")[:2]
+            for i in range(2):
               sentence[i] = sentence[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(").replace("U . S . ", "U.S. ")
               sentence[i] = detokenizer.detokenize(sentence[i].split(" "))
                
@@ -222,7 +230,7 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
         
 
    sensitivities.append(sensitivity)
-   print("Captured", capturedSensitivity, "out of", sensitivity)
+   print("Captured", capturedSensitivity, "out of", sensitivity, predictionFound/(predictionFound+predictionNotFound+1e-10))
    print("Average block sensitivity of the model", sum(sensitivities)/len(sensitivities))
    print(original, "\t", sensitivity, file=outFile)
 
@@ -236,4 +244,4 @@ print("Standard error", variance/math.sqrt(len(sensitivities)))
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())
 
-print("Number of datapoints", len(sensitivities))
+

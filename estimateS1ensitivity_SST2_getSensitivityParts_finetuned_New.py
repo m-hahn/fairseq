@@ -1,5 +1,3 @@
-import random
-rng = random.Random(5)
 import math
 import sys
 import torch
@@ -31,7 +29,6 @@ from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-predictions_all = []
 
 averageLabel = [0,0,0]
 
@@ -39,7 +36,7 @@ averageLabel = [0,0,0]
 with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_datapoints_predictions_finetuned.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_PMLM_1billion_raw.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
@@ -60,25 +57,10 @@ print("Label Variance", 4*(averageLabel[2]/averageLabel[0] - (averageLabel[1]/av
 print(list(alternatives_predictions_float.items())[:10])
 
 alternatives = []
-for group in [""]: #["c", "d", "e"]:
- with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_c_sentBreak_new_finetuned_large.tsv", "r") as inFile:
+for group in ["c", "d", "e"]:
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_{group}_finetuned.tsv", "r") as inFile:
   alternatives += inFile.read().strip().split("#####\n")
   print(len(alternatives))
-
-
-
-from collections import defaultdict
-
-RoBERTa_alternatives = defaultdict(list)
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
-  for line in inFile:
-     line = line.strip().split("\t")
-     if len(line) < 3:
-           print("ERROR", line)
-           continue
-     RoBERTa_alternatives[(line[0].strip(), line[1].strip())].append(line[2])
-
-
 
 sensitivities = []
 
@@ -98,47 +80,48 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    original = alternative[0].strip()
    print("#######", file=outFile_Witnesses)
    print(original, file=outFile_Witnesses)
- #  print(original+"#")
-   assert original in itemsPredictions
-   tokenizedBaree = alternative[1]
-   tokenized = alternative[1].split(" ")
-   valuesPerVariant = {}
-   hasConsideredSubsets = set()
+   print("DETOKENIZED", "\t", detokenizer.detokenize(original.replace("</s>", "").strip().split(" ")), file=outFile_Witnesses)
 
-   if tokenizedBare not in RoBERTa_alternatives_set:
-      print("No predictions for this datapoint!", tokenizedBare)
-      continue
+   print(original+"#")
+   assert original in itemsPredictions
+   entry = itemsPredictions[original]
+   predictionForOriginal = float(entry[2])
+   assert predictionForOriginal <= 0
+   print(entry)
+   tokenized = alternative[1].split(" ")
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
          continue
-      try:
-         subset, sentence= variant.strip().split("\t")
-      except ValueError:
-        continue
-      subset = subset.strip()
-      if (subset,tokenizedBare) not in RoBERTa_alternatives:
-          print("ERROR. If this happens more than a couple of times, then this is a problem", (subset,tokenizedBare))
-          continue
-      if ((subset, tokenizedBare) not in RoBERTa_alternatives):
-         print("WEIRD", (subset, tokenizedBare))
-      if (subset, tokenizedBare) in processed:
-        continue
-      if subset in hasConsideredSubsets:
-        continue
-      for sentence in RoBERTa_alternatives[(subset, tokenizedBare)]:
-         #print(alternative)
-         sentence = sentence.replace("<s>", "").replace("</s>", "").split("[SEP]")[0].strip()
-         assert sentence in alternatices_predictions_float, sentence
-#         if sentence not in alternatives_predictions_float:
- #           print("DID NOT FIND", sentence)
-  #          #assert False
-   #         continue
-         valuesPerVariant[sentence] = alternatives_predictions_float[sentence]
-         if subset not in variants_dict:
-            variants_dict[subset] = []
-         variants_dict[subset].append(sentence)
+
+      subset, sentence= variant.strip().split("\t")
+      sentence = "".join(sentence.strip().split(" "))
+      sentence = sentence.replace("▁", " ").replace("</s>", "")
+      sentence = sentence.strip()
+      if sentence not in alternatives_predictions_float:
+         print("DID NOT FIND", sentence)
+         assert False
+         continue
+      assert sentence in alternatives_predictions_float, sentence
+
+
+      variants_set.add(sentence)
+      if subset not in variants_dict:
+         variants_dict[subset] = []
+      variants_dict[subset].append(sentence)
   # print((result))
+   print(len(variants_set), "variants")
+   valuesPerVariant = {}
+   for variant in variants_set:
+   #  print(variant)
+     try:
+       valuesPerVariant[variant] = alternatives_predictions_float[variant]
+     except ValueError:
+        print("VALUE ERROR", variant)
+        valuesPerVariant[variant] = 0
+     except AttributeError:
+        print("VALUE ERROR", variant)
+        valuesPerVariant[variant] = 0
 
    varianceBySubset = {}
    for subset in variants_dict:
@@ -165,6 +148,8 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    perSubsetSensitivities = [varianceBySubset[x] - 1e-5*len([y for y in x if y == "1"]) for x in subsetsEnumeration]
 
    sensitivity, assignment = getMaxOverPartitions(A, b, x_bounds, perSubsetSensitivities)
+   if str(sensitivity) == "nan":
+      continue
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity, file=outFile_Witnesses)
    print("OVERALL SENSITIVITY ON THIS DATAPOINT", sensitivity)
    print(tokenized)
@@ -176,19 +161,16 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    for i in subsetsBySensitivity:
       assigned = assignment[i].item()
       if assigned > 1e-2 and perSubsetSensitivities[i] > 0.3:
-         print("&&&&&&&&&&& SUBSET SENSITIVITY", "\t", assigned, "\t", float(perSubsetSensitivities[i]), file=outFile_Witnesses)
+         print("&&&&&&&&&&& SUBSET SENSITIVITY", "\t", assigned, "\t", perSubsetSensitivities[i], file=outFile_Witnesses)
 #         print(len(subsetsEnumeration[j]), len(tokenized))
          capturedSensitivity += perSubsetSensitivities[i]
 
-         tokenized2 = [tokenized[j] if subsetsEnumeration[i][j] == "0" else "####" for j in range(len(tokenized))]
-         
-         tokenized2_1 = ("".join(tokenized2)).replace("▁", " ")
-         print(tokenized2_1)
+         tokenized2 = ("".join([tokenized[j] if subsetsEnumeration[i][j] == "0" else "####" for j in range(len(tokenized))])).replace("▁", " ")
+         print(tokenized2)
+         print(subsetsEnumeration[i], assigned, perSubsetSensitivities[i])
+        
 
-
-
-         sentences = [tokenized2_1]
-
+         sentences = [tokenized2]
          result = [[]]
          for s in range(1):
            sentence = sentences[s]
@@ -206,20 +188,15 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
            if len(sentence) > 0:
               result[s].append(sentence)
 #         print({"premise" : result[0], "hypothesis" : result[1], "subset" : subsetsEnumeration[i], "original" : original}, ",", file=outFile)
-         print("&&&&&&&&&@ SUBSETS", "\t", str("\t".join(sentences)), file=outFile_Witnesses)
+         print("&&&&&&&&&@ SUBSETS", "\t", detokenizer.detokenize(str(" ".join(result[0])).split(" ")), file=outFile_Witnesses)
          print("&&&&&&&&&% SUBSETS", "\t", str(result), file=outFile_Witnesses)
 
 
-  #       print(subsetsEnumeration[i], assigned, perSubsetSensitivities[i])
          sentsWithValues = sorted([ (x, valuesPerVariant[x]) for x in variants_dict[subsetsEnumeration[i]]], key=lambda x:x[1])
          for sentence, prediction in sentsWithValues:
-            sentence = sentence.split("[SEP]")[:1]
-            for i in range(1):
-              sentence[i] = sentence[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(").replace("U . S . ", "U.S. ")
-              sentence[i] = detokenizer.detokenize(sentence[i].split(" "))
+            sentence = detokenizer.detokenize(sentence.split(" "))
                
-            print("\t".join(sentence), "\t", prediction, file=outFile_Witnesses)
-        
+            print((sentence), "\t", prediction, file=outFile_Witnesses)
 
    sensitivities.append(sensitivity)
    print("Captured", capturedSensitivity, "out of", sensitivity)
@@ -233,7 +210,8 @@ variance = sum([x**2 for x in sensitivities]) / len(sensitivities) - (sum(sensit
 import math
 print("Standard error", variance/math.sqrt(len(sensitivities)))
 
+import torch
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())
 
-print("Number of datapoints", len(sensitivities))
+
