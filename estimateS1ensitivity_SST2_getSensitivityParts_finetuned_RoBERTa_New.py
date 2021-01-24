@@ -5,8 +5,8 @@ import sys
 import torch
 task = sys.argv[1]
 
-from nltk.tokenize.treebank import TreebankWordDetokenizer
-detokenizer = TreebankWordDetokenizer()
+#from nltk.tokenize.treebank import TreebankWordDetokenizer
+#detokenizer = TreebankWordDetokenizer()
 
 
 assert task == "SST-2"
@@ -31,7 +31,6 @@ from random import shuffle
 
 alternatives_predictions_binary = {}
 alternatives_predictions_float = {}
-predictions_all = []
 
 averageLabel = [0,0,0]
 
@@ -39,7 +38,7 @@ averageLabel = [0,0,0]
 with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_datapoints_predictions_finetuned.tsv", "r") as inFile:
    itemsPredictions = dict([(x[0], x) for x in [x.split("\t") for x in inFile.read().strip().split("\n")]])
 
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_PMLM_1billion_raw.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_predictions_finetuned_RoBERTa.tsv", "r") as inFile:
   for line in inFile:
      if len(line) < 5:
        continue
@@ -70,7 +69,8 @@ for group in [""]: #["c", "d", "e"]:
 from collections import defaultdict
 
 RoBERTa_alternatives = defaultdict(list)
-with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
+for group in [""]: # , "_d", "_e"
+ with open(f"/u/scr/mhahn/PRETRAINED/GLUE/glue_data/SST-2/dev_alternatives_RoBERTa_finetuned{group}.tsv", "r") as inFile:
   for line in inFile:
      line = line.strip().split("\t")
      if len(line) < 3:
@@ -105,9 +105,9 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
    valuesPerVariant = {}
    hasConsideredSubsets = set()
 
-   if tokenizedBare not in RoBERTa_alternatives_set:
-      print("No predictions for this datapoint!", tokenizedBare)
-      continue
+   #if tokenizedBare not in RoBERTa_alternatives_set:
+   #   print("No predictions for this datapoint!", tokenizedBare)
+   #   continue
    for variant in alternative[3:]:
       #print(variant)
       if len(variant) < 5:
@@ -129,7 +129,7 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
       for sentence in RoBERTa_alternatives[(subset, tokenizedBare)]:
          #print(alternative)
          sentence = sentence.replace("<s>", "").replace("</s>", "").split("[SEP]")[0].strip()
-         assert sentence in alternatices_predictions_float, sentence
+         assert sentence in alternatives_predictions_float, sentence
 #         if sentence not in alternatives_predictions_float:
  #           print("DID NOT FIND", sentence)
   #          #assert False
@@ -214,9 +214,11 @@ with open(f"../block-certificates/items/witnesses_{__file__}", "w") as outFile_W
          sentsWithValues = sorted([ (x, valuesPerVariant[x]) for x in variants_dict[subsetsEnumeration[i]]], key=lambda x:x[1])
          for sentence, prediction in sentsWithValues:
             sentence = sentence.split("[SEP]")[:1]
-            for i in range(1):
-              sentence[i] = sentence[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(").replace("U . S . ", "U.S. ")
-              sentence[i] = detokenizer.detokenize(sentence[i].split(" "))
+            #for i in range(1):
+              #print(sentence)
+              #quit()
+              #sentence[i] = sentence[i].replace("[CLS]", "").replace("[SEP]", "").strip().replace(" ' s ", " 's ").replace(" ' ll ", " 'll ").replace(" ' d ", " 'd ").replace("n ' t ", "n't ").replace(" ' ve ", " 've ").replace(" @ - @ ", "-").replace("( ", "(").replace("U . S . ", "U.S. ")
+              #sentence[i] = detokenizer.detokenize(sentence[i].split(" "))
                
             print("\t".join(sentence), "\t", prediction, file=outFile_Witnesses)
         
