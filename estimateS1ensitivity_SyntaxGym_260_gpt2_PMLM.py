@@ -4,7 +4,7 @@ import torch
 task = sys.argv[1]
 from nltk.tokenize.treebank import TreebankWordDetokenizer                                                                                                                                                  
 detokenizer = TreebankWordDetokenizer()      
-assert task == "SyntaxGym_248"
+assert task == "SyntaxGym_260"
 
 def mean(values):
    return sum(values)/len(values)
@@ -30,13 +30,13 @@ alternatives_predictions_float = {}
 
 averageLabel = [0,0,0]
 
-originalSentences = open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives_PMLM_1billion_raw_forGPT2.tsv", "r").read().strip().split("\n")
-#originalSentences += open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_datapoints_raw.tsv", "r").read().strip().split("\n")
+originalSentences = open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_PMLM_1billion_raw_forGPT2.tsv", "r").read().strip().split("\n")
+#originalSentences += open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_datapoints_raw.tsv", "r").read().strip().split("\n")
 
 predictions = {}
 sentencesInOrder = []
 for f in ["alternatives"]:
- with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_{f}_PMLM_1billion_raw_forGPT2_SURPRISALS.tsv", "r") as inFile:
+ with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_{f}_PMLM_1billion_raw_forGPT2_SURPRISALS.tsv", "r") as inFile:
   header = next(inFile)
   assert header == "sentence_id\ttoken_id\ttoken\tsurprisal\n"
   data2 = inFile.read().split("\n")
@@ -80,7 +80,7 @@ for f in ["alternatives"]:
 
 from collections import defaultdict
 alternativesPerVariant = defaultdict(list)
-with open("/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
+with open("/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives_PMLM_1billion_raw.tsv", "r") as inFile:
   for line in inFile:
      subset, original, sentence = line.strip().split("\t")
      sentence = sentence.replace('[CLS]', "").split("[SEP]")[0].replace("himself", "REFLEXIVE").replace("themselves", "REFLEXIVE").strip()
@@ -92,7 +92,6 @@ with open("/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives_PMLM_1bi
 
  #    if "▁next ▁to ▁the ▁senators ▁h" in original:
 #       print((subset, original))
-assert ("0000001000", "▁The ▁author ▁next ▁to ▁the ▁senators ▁hurt ▁REFLEXIVE .") in alternativesPerVariant
 #quit()
 
 sentences = [x[0] for x in predictions]
@@ -119,7 +118,7 @@ print(list(alternatives_predictions_float.items())[:10])
 
 
 
-with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_248_alternatives.tsv", "r") as inFile:
+with open(f"/u/scr/mhahn/PRETRAINED/SyntaxGym/syntaxgym_260_alternatives.tsv", "r") as inFile:
   alternatives = inFile.read().strip().split("#####\n")
   print(len(alternatives))
 
@@ -161,7 +160,6 @@ for alternative in alternatives:
      
   #    print(str(alternativesPerVariant)[:500])
  #     print(subset, tokenizedOriginal) 
-      assert ("0000001000", "▁The ▁author ▁next ▁to ▁the ▁senators ▁hurt ▁REFLEXIVE .") in alternativesPerVariant
       assert (subset, tokenizedOriginal) in alternativesPerVariant, (subset, tokenizedOriginal)
       alternativesForSubset = alternativesPerVariant[(subset, tokenizedOriginal)]
 #      print(alternativesForSubset)
@@ -243,5 +241,4 @@ print("Median block sensitivity of the model", sorted(sensitivities)[int(len(sen
 import torch
 sensitivityHistogram = torch.FloatTensor(sensitivityHistogram)
 print(sensitivityHistogram/sensitivityHistogram.sum())
-
 
